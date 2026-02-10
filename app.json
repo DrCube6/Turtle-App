@@ -1,16 +1,15 @@
 {
   "expo": {
-    "name": "test_expo_prj",
-    "slug": "test_expo_prj",
+    "name": "Turtle-App",
+    "slug": "Turtle-App",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "testexpoprj",
+    "scheme": "turtleapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.rocklinb.testexpoprj"
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
@@ -20,8 +19,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "package": "com.rocklinb.testexpoprj"
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
@@ -45,19 +43,6 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "035c3f80-c676-4da6-814e-ce3a72f54d3b"
-      }
-    },
-    "owner": "rocklinb",
-    "updates": {
-      "url": "https://u.expo.dev/035c3f80-c676-4da6-814e-ce3a72f54d3b"
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
     }
   }
 }
