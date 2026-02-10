@@ -1,6 +1,6 @@
 import { Button, ButtonText } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
-import { HStack } from "@/components/ui/hstack/index.web";
+import { HStack } from "@/components/ui/hstack";
 import { CloseIcon, Icon } from "@/components/ui/icon";
 import { Input, InputField } from "@/components/ui/input";
 import {
@@ -13,7 +13,7 @@ import {
   ModalHeader,
 } from "@/components/ui/modal";
 import { Text } from "@/components/ui/text";
-import { VStack } from "@/components/ui/vstack/index.web";
+import { VStack } from "@/components/ui/vstack";
 import { useState } from "react";
 
 const data = {
@@ -81,7 +81,10 @@ export default function HabitatView() {
             My Habitats
           </Text>
           <Button
-            onPress={() => setShowModal(true)}
+            onPress={() => {
+              console.log("add button pressed");
+              setShowModal(true);
+            }}
             className="w-[50px] self-center rounded-xl"
             variant="solid"
             size="xs"
@@ -89,85 +92,6 @@ export default function HabitatView() {
           >
             <ButtonText>Add</ButtonText>
           </Button>
-          <Modal
-            isOpen={showModal}
-            onClose={() => {
-              setShowModal(false);
-              //reset form fields
-              setHabitatName("");
-              setConnectionAddress("");
-            }}
-            size="md"
-          >
-            <ModalBackdrop />
-            <ModalContent>
-              <ModalHeader>
-                <Heading size="lg">Create Habitat</Heading>
-                <ModalCloseButton>
-                  <Icon as={CloseIcon} />
-                </ModalCloseButton>
-              </ModalHeader>
-              <ModalBody>
-                <VStack space="md">
-                  <Text size="md">Habitat Name</Text>
-                  <Input
-                    variant="outline"
-                    size="md"
-                    isDisabled={false}
-                    isInvalid={false}
-                    isReadOnly={false}
-                  >
-                    <InputField
-                      placeholder="Enter Habitat Name..."
-                      value={habitatName}
-                      onChangeText={setHabitatName}
-                    />
-                  </Input>
-                  <Text size="md">Connect</Text>
-                  <Input
-                    variant="outline"
-                    size="md"
-                    isDisabled={false}
-                    isInvalid={false}
-                    isReadOnly={false}
-                  >
-                    <InputField
-                      placeholder="Enter Connection Address..."
-                      value={connectionAddress}
-                      onChangeText={setConnectionAddress}
-                    />
-                  </Input>
-                </VStack>
-              </ModalBody>
-              <ModalFooter>
-                <Button
-                  variant="solid"
-                  action="secondary"
-                  className="mr-3"
-                  onPress={() => {
-                    setShowModal(false);
-                    //reset form fields
-                    setHabitatName("");
-                    setConnectionAddress("");
-                  }}
-                >
-                  <ButtonText>Cancel</ButtonText>
-                </Button>
-                <Button
-                  variant="solid"
-                  action="positive"
-                  isDisabled={!ifFormValid}
-                  onPress={() => {
-                    setShowModal(false);
-                    //reset form fields
-                    handleCreateHabitat();
-                  }}
-                >
-                  <ButtonText>Create</ButtonText>
-                </Button>
-              </ModalFooter>
-            </ModalContent>
-          </Modal>
         </HStack>
         {habitats.map((habitat) => (
           <HStack
@@ -180,6 +104,85 @@ export default function HabitatView() {
           </HStack>
         ))}
       </VStack>
+      <Modal
+        isOpen={showModal}
+        onClose={() => {
+          setShowModal(false);
+          //reset form fields
+          setHabitatName("");
+          setConnectionAddress("");
+        }}
+        size="md"
+      >
+        <ModalBackdrop />
+        <ModalContent>
+          <ModalHeader>
+            <Heading size="lg">Create Habitat</Heading>
+            <ModalCloseButton>
+              <Icon as={CloseIcon} />
+            </ModalCloseButton>
+          </ModalHeader>
+          <ModalBody>
+            <VStack space="md">
+              <Text size="md">Habitat Name</Text>
+              <Input
+                variant="outline"
+                size="md"
+                isDisabled={false}
+                isInvalid={false}
+                isReadOnly={false}
+              >
+                <InputField
+                  placeholder="Enter Habitat Name..."
+                  value={habitatName}
+                  onChangeText={setHabitatName}
+                />
+              </Input>
+              <Text size="md">Connect</Text>
+              <Input
+                variant="outline"
+                size="md"
+                isDisabled={false}
+                isInvalid={false}
+                isReadOnly={false}
+              >
+                <InputField
+                  placeholder="Enter Connection Address..."
+                  value={connectionAddress}
+                  onChangeText={setConnectionAddress}
+                />
+              </Input>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant="solid"
+              action="secondary"
+              className="mr-3"
+              onPress={() => {
+                setShowModal(false);
+                //reset form fields
+                setHabitatName("");
+                setConnectionAddress("");
+              }}
+            >
+              <ButtonText>Cancel</ButtonText>
+            </Button>
+            <Button
+              variant="solid"
+              action="positive"
+              isDisabled={!ifFormValid}
+              onPress={() => {
+                setShowModal(false);
+                //reset form fields
+                handleCreateHabitat();
+              }}
+            >
+              <ButtonText>Create</ButtonText>
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </>
   );
 }
