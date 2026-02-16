@@ -1,85 +1,24 @@
-import { Link } from "expo-router";
-import { useState } from "react";
-import { Button, StyleSheet, Text, View } from "react-native";
-
-const data = {
-  habitats: [
-    {
-      id: 1,
-      name: "Tropical Rainforest",
-      description: "A dense, warm, and wet forest with a high level of biodiversity.",
-      imageUrl: "https://example.com/tropical-rainforest.jpg"
-    },
-    {
-      id: 2,
-      name: "Savanna",
-      description: "A grassy plain with scattered trees, found in tropical and subtropical regions.",
-      imageUrl: "https://example.com/savanna.jpg"
-    }
-  ]
-}
+import '@tamagui/native/setup-zeego';
+import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
+import { SizableText, Spinner, YStack } from 'tamagui';
 
 export default function Index() {
+//route to habitat selection
+const router = useRouter();
 
-  const [habitats, setHabitats] = useState(data.habitats);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      router.replace('/test');
+    }, 100);
 
-  
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
-    <View
-      style={styles.container}
-    >
-
-      <Text style={styles.text}>Hello</Text>
-      <Button title="Add Habitat" onPress={() => {
-        setHabitats((prev) => [
-          ...prev,
-          {
-            id: data.habitats.length + 1,
-            name: "New Habitat",
-            description: "A newly added habitat.",
-            imageUrl: "https://example.com/new-habitat.jpg"
-          }
-        ])
-      }} />
-
-      <Link href={"/(tabs)/habitat_view"} style={styles.button}>
-        Go to Habitat View
-      </Link>
-
-      {habitats.map((habitat) => (
-        <View key={habitat.id} style={styles.habitatCard}>
-          <Text style={styles.text}>
-            {habitat.name}
-          </Text>
-          <Text style={styles.text}>
-            {habitat.description}
-          </Text>
-        </View>
-      ))}
-
-
-    </View>
+    <YStack flex={1} items="center" justify="center" bg="$background">
+      <Spinner size="large" color="$blue10" />
+      <SizableText mt="$4" size="$6">Welcome...</SizableText>
+    </YStack>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#8a8383",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  text: {
-    color: "#fff",
-  },
-  habitatCard: {
-    marginVertical: 10,
-    padding: 10,
-  },
-  button: {
-    fontSize: 20,
-    textDecorationLine: "underline",
-    color: "#fff",
-  }
-});
