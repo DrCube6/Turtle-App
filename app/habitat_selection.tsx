@@ -12,25 +12,18 @@ export default function HabitatSelection() {
   return (
     <YStack
       flex={1}
-      backgroundColor="gray"
+      backgroundColor="$gray12"
       items={"center"}
       padding="$4"
       paddingTop={60}
       gap="$4"
       width={"100%"}
     >
-      <Text color="black" fontSize="$6" fontWeight="bold">
-        {" "}
-        Habitat Selection
-      </Text>
-      <Separator
-        borderColor="black"
-        borderBottomWidth={3}
-        alignSelf="stretch"
-      />
       <YStack
         flex={1}
-        backgroundColor="white"
+        backgroundColor="$gray12"
+        borderWidth={3}
+        borderColor={"white"}
         items={"flex-start"}
         width="100%"
         gap="$4"
@@ -39,28 +32,28 @@ export default function HabitatSelection() {
         rounded={40}
       >
         <XStack flexWrap="wrap" justify={"space-between"} width="100%">
-          <Text color="black" fontSize="$4" fontWeight="bold">
+          <Text color="white" fontSize="$5" fontWeight="bold">
             My Habitats
           </Text>
           <Button
             size="$2"
-            theme="black_accent"
+            theme="dark_green"
             onPress={() => {
-              router.push("/create_new_habitat");
+              router.push("/add_habitat");
             }}
           >
             Add
           </Button>
         </XStack>
         <Separator
-          borderColor="black_accent"
+          borderColor="gray"
           borderBottomWidth={3}
           alignSelf="stretch"
         />
         <ScrollView width="100%" rounded={10}>
           <YStack gap="$3" width="100%">
             {habitats.length === 0 ? (
-              <Text color="black" fontSize="$3">
+              <Text color="gray" fontSize="$3">
                 No habitats found. Please add a habitat.
               </Text>
             ) : (
@@ -71,7 +64,7 @@ export default function HabitatSelection() {
                   padding="$3"
                   size="$6"
                   rounded={10}
-                  backgroundColor="$blue3"
+                  theme="dark_blue"
                   hoverStyle={{
                     background: "$blue4",
                   }}
@@ -85,8 +78,8 @@ export default function HabitatSelection() {
                     });
                   }}
                 >
-                  <YStack gap="$1">
-                    <Text color="black" fontSize="$4" fontWeight="bold">
+                  <YStack gap="$1" items="flex-start" flex={1}>
+                    <Text fontSize="$4" fontWeight="bold">
                       {habitat.name}
                     </Text>
                     <Text color="black">{habitat.connection}</Text>

@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Button, Input, Separator, SizableText, XStack, YStack } from "tamagui";
 
-export default function CreateNewHabitat() {
+export default function AddExistingHabitat() {
   const router = useRouter();
   const { habitats, addHabitat } = useHabitats();
 
@@ -50,7 +50,7 @@ export default function CreateNewHabitat() {
         rounded={40}
       >
         <SizableText color="white" size="$8" alignSelf={"center"}>
-          {"Create New Habitat"}
+          {"Add Existing Habitat"}
         </SizableText>
         <Separator
           borderColor="gray"

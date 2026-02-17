@@ -9,37 +9,29 @@ export default function RootLayout() {
   return (
     <HabitatProvider>
       <TamaguiProvider config={config} defaultTheme="light">
-        <Stack>
-          <Stack.Screen
-            name="index"
-            options={{
-              headerShown: false,
-            }}
-          />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: "ios_from_right",
+            gestureEnabled: false,
+          }}
+        >
+          <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen
             name="habitat_selection"
-            options={{
-              headerShown: false,
-            }}
+            options={{ headerShown: false }}
           />
-          <Stack.Screen
-            name="test"
-            options={{
-              headerShown: false,
-            }}
-          />
+          <Stack.Screen name="test" options={{ headerShown: false }} />
+          <Stack.Screen name="add_habitat" options={{ headerShown: false }} />
           <Stack.Screen
             name="create_new_habitat"
-            options={{
-              headerShown: false,
-            }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="+not-found"
-            options={{
-              headerShown: false,
-            }}
+            name="add_existing_habitat"
+            options={{ headerShown: false }}
           />
+          <Stack.Screen name="+not-found" options={{ headerShown: false }} />
         </Stack>
       </TamaguiProvider>
     </HabitatProvider>

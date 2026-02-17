@@ -1,4 +1,3 @@
-import "@tamagui/native/setup-zeego";
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { SizableText, Spinner, YStack } from "tamagui";
@@ -9,18 +8,40 @@ export default function Index() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      router.replace("/habitat_selection");
-    }, 100);
+      router.replace("/test");
+    }, 200);
 
     return () => clearTimeout(timer);
   }, []);
 
   return (
-    <YStack flex={1} items="center" justify="center" bg="$background">
-      <Spinner size="large" color="$blue10" />
-      <SizableText mt="$4" size="$6">
-        Welcome...
-      </SizableText>
+    <YStack
+      flex={1}
+      backgroundColor="$gray12"
+      items={"center"}
+      padding="$4"
+      paddingTop={60}
+      gap="$4"
+      width={"100%"}
+    >
+      <YStack
+        flex={1}
+        backgroundColor="$gray12"
+        borderWidth={3}
+        borderColor={"white"}
+        items={"center"}
+        justify={"center"}
+        width="100%"
+        gap="$4"
+        padding="$5"
+        paddingTop={30}
+        rounded={40}
+      >
+        <Spinner size="large" color="white"></Spinner>
+        <SizableText mt="$4" size="$6" color="white">
+          Welcome...
+        </SizableText>
+      </YStack>
     </YStack>
   );
 }
