@@ -1,13 +1,14 @@
 import { Stack } from "expo-router";
-import { PortalProvider, TamaguiProvider } from "tamagui";
+import { TamaguiProvider } from "tamagui";
 import { config } from "../tamagui.config";
 
 import "@/global.css";
+import { HabitatProvider } from "../context/HabitatContext";
 
 export default function RootLayout() {
   return (
-    <TamaguiProvider config={config} defaultTheme="light">
-      <PortalProvider>
+    <HabitatProvider>
+      <TamaguiProvider config={config} defaultTheme="light">
         <Stack>
           <Stack.Screen
             name="index"
@@ -40,7 +41,7 @@ export default function RootLayout() {
             }}
           />
         </Stack>
-      </PortalProvider>
-    </TamaguiProvider>
+      </TamaguiProvider>
+    </HabitatProvider>
   );
 }

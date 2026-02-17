@@ -1,43 +1,13 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
 import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
-
-const data = {
-  habitats: [
-    {
-      id: 1,
-      name: "habitat_01",
-      connection: "0001",
-    },
-    {
-      id: 2,
-      name: "habitat_02",
-      connection: "0002",
-    },
-  ],
-};
+import { useHabitats } from "../context/HabitatContext";
 
 export default function HabitatSelection() {
+  //get habitats
+  const { habitats } = useHabitats();
+
   //router
   const router = useRouter();
-
-  //state for habitat name and connection address
-  const [habitatName, setHabitatName] = useState("");
-  const [connectionAddress, setConnectionAddress] = useState("");
-
-  //habitats state to store the list of habitats
-  const [habitats, setHabitats] = useState(data.habitats);
-
-  //save button is enabled only if both habitat name and connection address are not empty & forms are unique
-  const ifFormValid =
-    habitatName.trim() !== "" &&
-    connectionAddress.trim() !== "" &&
-    !habitats.some((h) => {
-      return (
-        h.name.toLowerCase() === habitatName.trim().toLowerCase() ||
-        h.connection.toLowerCase() === connectionAddress.trim().toLowerCase()
-      );
-    });
 
   return (
     <YStack
@@ -89,30 +59,41 @@ export default function HabitatSelection() {
         />
         <ScrollView width="100%" rounded={10}>
           <YStack gap="$3" width="100%">
-            {habitats.map((habitat) => (
-              <Button
-                key={habitat.id}
-                justify={"flex-start"}
-                padding="$3"
-                size="$6"
-                backgroundColor="$blue3"
-                hoverStyle={{
-                  background: "$blue4",
-                }}
-                onPress={() => {
-                  //navigate to habitat view
-                  router.push("/(tabs)/habitat_view");
-                }}
-                rounded={10}
-              >
-                <YStack gap="$1">
-                  <Text color="black" fontSize="$4" fontWeight="bold">
-                    {habitat.name}
-                  </Text>
-                  <Text color="black">{habitat.connection}</Text>
-                </YStack>
-              </Button>
-            ))}
+            {habitats.length === 0 ? (
+              <Text color="black" fontSize="$3">
+                No habitats found. Please add a habitat.
+              </Text>
+            ) : (
+              habitats.map((habitat) => (
+                <Button
+                  key={habitat.id}
+                  justify={"flex-start"}
+                  padding="$3"
+                  size="$6"
+                  rounded={10}
+                  backgroundColor="$blue3"
+                  hoverStyle={{
+                    background: "$blue4",
+                  }}
+                  onPress={() => {
+                    //navigate to habitat view
+                    router.push({
+                      pathname: "/(tabs)/habitat_view",
+                      params: {
+                        id: habitat.id,
+                      },
+                    });
+                  }}
+                >
+                  <YStack gap="$1">
+                    <Text color="black" fontSize="$4" fontWeight="bold">
+                      {habitat.name}
+                    </Text>
+                    <Text color="black">{habitat.connection}</Text>
+                  </YStack>
+                </Button>
+              ))
+            )}
           </YStack>
         </ScrollView>
       </YStack>
