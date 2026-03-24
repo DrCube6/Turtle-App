@@ -12,25 +12,20 @@ export default function RootLayout() {
         <Stack
           screenOptions={{
             headerShown: false,
-            animation: "ios_from_right",
+            animation: "fade",
+            animationDuration: 200,
             gestureEnabled: false,
           }}
         >
           <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="habitat_selection"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen name="test" options={{ headerShown: false }} />
-          <Stack.Screen name="add_habitat" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="create_new_habitat"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="add_existing_habitat"
-            options={{ headerShown: false }}
-          />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="hub_connect" options={{ headerShown: false }} />
+          <Stack.Screen name="dashboard" options={{ headerShown: false }} />
+          <Stack.Screen name="map" options={{ headerShown: false }} />
+          <Stack.Screen name="config" options={{ headerShown: false }} />
+          <Stack.Screen name="config_edit" options={{ headerShown: false }} />
+          <Stack.Screen name="node" options={{ headerShown: false }} />
+          <Stack.Screen name="graph" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" options={{ headerShown: false }} />
         </Stack>
       </TamaguiProvider>

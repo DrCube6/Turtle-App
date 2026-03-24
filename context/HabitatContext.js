@@ -1,20 +1,38 @@
-// contexts/HabitatContext.js
 import React, { createContext, useContext, useState } from "react";
 
-//creation of the context
+/** @typedef {import('../types/habitat').Habitat} Habitat */
+/** @typedef {import('../types/habitat').Sensor} Sensor */
+
 const HabitatContext = createContext();
 
-//default habitats
-const defaultHabitats = [];
+const defaultHabitat = [
+  {
+    id: "1",
+    name: "hb_01",
+    connection: "001",
+    rows: 5,
+    cols: 5,
+    sensors: [{ row: 0, col: 0, number: 1 }],
+  },
+];
 
 export const HabitatProvider = ({ children }) => {
-  const [habitats, setHabitats] = useState(defaultHabitats);
+  /** @type {Habitat[]} */
+  const [habitats, setHabitats] = useState(defaultHabitat);
 
-  const addHabitat = (name, connection) => {
-    setHabitats((prev) => [
-      ...prev,
-      { id: Date.now().toString(), name, connection },
-    ]);
+  //adding our data to our current habitat
+  const addHabitat = ({ name, connection, rows, cols, sensors = [] }) => {
+    /** @type {Habitat} */
+    const newHabitat = {
+      id: Date.now().toString() + Math.random().toString(36).slice(2),
+      name: name.trim(),
+      connection: connection.trim(),
+      rows: Number(rows),
+      cols: Number(cols),
+      sensors,
+    };
+    //return habitat back to the context list
+    setHabitats((prev) => [...prev, newHabitat]);
   };
 
   const updateHabitat = (id, updatedData) => {
