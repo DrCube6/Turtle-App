@@ -18,7 +18,7 @@ useEffect(() => {
           await NavigationBar.setVisibilityAsync("hidden");
 
           // Set behavior
-          await NavigationBar.setBehaviorAsync("inset-swipe");
+          await NavigationBar.setBehaviorAsync("overlay");
         } catch (error) {
           // This catches the "undefined" or "not available yet" cases gracefully
           console.warn("NavigationBar setup failed (this is normal during early render):", error);

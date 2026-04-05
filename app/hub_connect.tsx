@@ -1,7 +1,24 @@
+import { useBLE } from "@/hooks/useBLE";
 import { router } from "expo-router";
 import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
 
 export default function HubConnect() {
+  //ble const
+  const {
+    devices,
+    connectedDevice,
+    isScanning,
+    connectToDevice,
+    startScan
+  } = useBLE();
+
+  const handleConnect = async (device: Device) => {
+      const connected = await connectToDevice(device);
+      if (connected) {
+        console.log("Connected to device:", device.name);
+      }
+    };
+
   return (
     <YStack
       flex={1}

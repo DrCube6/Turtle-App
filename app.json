@@ -15,10 +15,29 @@
       }
     },
     "android": {
+      "edgeToEdgeEnabled": false,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE"
       },
-      "edgeToEdgeEnabled": true,
+      "manifest": {
+        "activity": {
+          "android:exported": true
+        }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": ["DEFAULT", "BROWSABLE"],
+          "data": [
+            {
+              "scheme": "turtleapp"
+            },
+            {
+              "scheme": "exp+turtle-app"
+            }
+          ]
+        }
+      ],
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.BLUETOOTH",
