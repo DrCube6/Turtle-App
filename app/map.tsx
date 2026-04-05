@@ -29,7 +29,7 @@ export default function Map() {
           flex={1}
           width="100%"
           items="center"
-          backgroundColor="green"
+          backgroundColor="blue"
           gap="$4"
         >
           <Text color="white" fontSize="$5" fontWeight="bold">
