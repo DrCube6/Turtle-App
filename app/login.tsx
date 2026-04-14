@@ -1,38 +1,34 @@
-import { useHabitats } from "@/context/HabitatContext";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect } from "react";
 import { Platform } from "react-native";
+import { useLogin } from "../hooks/useLogin";
 import { Button, Input, Separator, Text, XStack, YStack } from "tamagui";
 
 export default function Login() {
-  //router
-  const { habitats, addHabitat } = useHabitats();
 
-  //form states
-  const [habitatName, setHabitatName] = useState("");
-  const [connectionAddress, setConnectionAddress] = useState("");
+  //login const
+  const {
+    username, setUsername,
+    password, setPassword,
+    statusText,
+    isLoggingIn,
+    isLoggedIn,
+    handleLogin,
+    logout,
+  } = useLogin();
 
-  //handle save
-  const handleSave = () => {
-    //Add all habitat values
-    addHabitat({
-      name: habitatName.trim(),
-      connection: connectionAddress.trim(),
-      rows: 0,
-      cols: 0,
-      sensors: [],
-    });
-  };
+  //push upon login
+  useEffect(() => {
+    if (isLoggedIn) {
+      router.push("/hub_connect");
+    }
+
+  }, [isLoggedIn, router]);
+
+  const loginFailed = statusText.toLowerCase().includes("failed") || statusText.toLowerCase().includes("error") || statusText.toLowerCase().includes("not found");
 
   //is form valid only if both habitat name and connection address are not empty & forms are unique
-  const ifFormValid =
-    habitatName.trim() !== "" &&
-    connectionAddress.trim() !== "" &&
-    !habitats.some(
-      (h) =>
-        h.name.toLowerCase() === habitatName.trim().toLowerCase() ||
-        h.connection.toLowerCase() === connectionAddress.trim().toLowerCase(),
-    );
+  const ifFormValid = username.trim() !== "" && password.trim() !== "";
 
   return (
     <YStack
@@ -78,27 +74,32 @@ export default function Login() {
         {/*form feilds*/}
         <YStack gap="$2" width="100%">
           <Text fontSize="$3" color="white">
-            Habitat Name
+            Username
           </Text>
           <Input
             theme="dark_gray"
+            outline={loginFailed ? "1px solid red" : "null"}
             width={"100%"}
             size="$4"
-            placeholder="Enter Habitat Name"
-            value={habitatName}
-            onChangeText={setHabitatName}
+            placeholder="Enter Username"
+            value={username}
+            onChangeText={setUsername}
           />
           <Text fontSize="$3" color="white">
             Password
           </Text>
           <Input
             theme="dark_gray"
+            outline={loginFailed ? "1px solid red" : "null"}
             width={"100%"}
             size="$4"
             placeholder="Enter Password"
-            value={connectionAddress}
-            onChangeText={setConnectionAddress}
+            value={password}
+            onChangeText={setPassword}
           />
+          <Text fontSize="$3" color="white">
+            {statusText}
+          </Text>
         </YStack>
         {/* Bottom Buttons */}
         <YStack
@@ -128,14 +129,13 @@ export default function Login() {
             <Button
               size="$3"
               theme="dark_green"
-              disabled={!ifFormValid}
+              disabled={!ifFormValid || isLoggingIn}
               disabledStyle={{ opacity: 0.5 }}
               onPress={() => {
-                handleSave();
-                router.push("/hub_connect");
+                handleLogin();
               }}
             >
-              Confirm
+              {isLoggingIn ? "Logging in..." : "Login"}
             </Button>
           </XStack>
         </YStack>

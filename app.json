@@ -2,12 +2,11 @@
   "expo": {
     "name": "Turtle-App",
     "slug": "Turtle-App",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "scheme": "turtleapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rocklinb.TurtleApp",
@@ -15,7 +14,6 @@
         "ITSAppUsesNonExemptEncryption": false
       }
     },
-
     "android": {
       "edgeToEdgeEnabled": false,
       "adaptiveIcon": {
@@ -23,11 +21,9 @@
       },
       "package": "com.rocklinb.TurtleApp",
       "predictiveBackGestureEnabled": false,
-
       "compileSdkVersion": 36,
       "targetSdkVersion": 36,
       "minSdkVersion": 24,
-
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
@@ -36,31 +32,38 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
-
       "intentFilters": [
         {
           "action": "VIEW",
-          "category": ["DEFAULT", "BROWSABLE"],
+          "category": [
+            "DEFAULT",
+            "BROWSABLE"
+          ],
           "data": [
-            { "scheme": "turtleapp" },
-            { "scheme": "exp+turtle-app" }
+            {
+              "scheme": "turtleapp"
+            },
+            {
+              "scheme": "exp+turtle-app"
+            }
           ]
         }
       ]
     },
-
     "plugins": [
       "expo-router",
       [
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": true,
-          "modes": ["peripheral", "central"],
+          "modes": [
+            "peripheral",
+            "central"
+          ],
           "bluetoothAlwaysPermission": "Allow Turtle App to connect to bluetooth devices",
           "neverForLocation": true
         }
       ],
-      // Optional: force SDK versions via build properties (recommended)
       [
         "expo-build-properties",
         {
@@ -71,20 +74,18 @@
             "buildToolsVersion": "36.0.0"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
-
     "extra": {
       "eas": {
         "projectId": "b63e09e0-b109-480e-811a-b41568e581c0"
       }
     },
-
     "runtimeVersion": {
       "policy": "appVersion"
     },

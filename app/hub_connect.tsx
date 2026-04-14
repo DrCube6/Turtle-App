@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
 import React from 'react';
-import { FlatList, Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { useBLE } from '../hooks/useBLE';
 import { Device } from 'react-native-ble-plx';
 

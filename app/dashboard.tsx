@@ -1,10 +1,10 @@
 import { router } from "expo-router";
 import { Platform } from "react-native";
-import { useBLE } from "../hooks/useBLE";
+// import { useBLE } from "../hooks/useBLE";
 import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
 
 export default function Dashboard() {
-  const { connectedDevice } = useBLE();
+  // const { connectedDevice } = useBLE();
 
   return (
     <YStack
@@ -99,7 +99,7 @@ export default function Dashboard() {
           <YStack gap="$4">
             <Button theme="dark_yellow" onPress={() => router.push("/node")}>
                 <Text color="white" fontSize="$4">
-                  Connected Device: {connectedDevice}
+                  {/* Connected Device: {connectedDevice} */}
                 </Text>
             </Button>
             <Button theme="dark_yellow" onPress={() => router.push("/node")}>

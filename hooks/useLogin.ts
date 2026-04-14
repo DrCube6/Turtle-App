@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { LoginResponse } from '../types';
+import * as SecureStore from 'expo-secure-store';
+import { APP_CONFIG } from '../config/appConfig';
 
 const STORAGE_KEY = 'turtle_app_login_state';
 
@@ -48,7 +50,6 @@ export function useLogin() {
         body: JSON.stringify({
           username,
           password,
-          // Add any other fields your server expects
         }),
       });
 
