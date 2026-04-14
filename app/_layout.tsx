@@ -18,7 +18,7 @@ useEffect(() => {
           await NavigationBar.setVisibilityAsync("hidden");
 
           // Set behavior
-          await NavigationBar.setBehaviorAsync("overlay");
+          await NavigationBar.setBehaviorAsync("overlay-swipe");
         } catch (error) {
           // This catches the "undefined" or "not available yet" cases gracefully
           console.warn("NavigationBar setup failed (this is normal during early render):", error);
@@ -54,6 +54,8 @@ useEffect(() => {
           <Stack.Screen name="config_edit" options={{ headerShown: false }} />
           <Stack.Screen name="node" options={{ headerShown: false }} />
           <Stack.Screen name="graph" options={{ headerShown: false }} />
+          <Stack.Screen name="ble_test" options={{ headerShown: false }} />
+          <Stack.Screen name="ble_monitor" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" options={{ headerShown: false }} />
         </Stack>
         </View>

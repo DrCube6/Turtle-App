@@ -1,6 +1,7 @@
 import { useHabitats } from "@/context/HabitatContext";
 import { router } from "expo-router";
 import { useState } from "react";
+import { Platform } from "react-native";
 import { Button, Input, Separator, Text, XStack, YStack } from "tamagui";
 
 export default function Login() {
@@ -39,7 +40,7 @@ export default function Login() {
       backgroundColor="$gray12"
       items={"center"}
       padding="$4"
-      paddingTop={60}
+      paddingTop={Platform.OS === "android" ? 30 : 60}
       gap="$4"
       width={"100%"}
     >
@@ -80,9 +81,9 @@ export default function Login() {
             Habitat Name
           </Text>
           <Input
-            theme="black"
+            theme="dark_gray"
             width={"100%"}
-            size="$2"
+            size="$4"
             placeholder="Enter Habitat Name"
             value={habitatName}
             onChangeText={setHabitatName}
@@ -91,9 +92,9 @@ export default function Login() {
             Password
           </Text>
           <Input
-            theme="black"
+            theme="dark_gray"
             width={"100%"}
-            size="$2"
+            size="$4"
             placeholder="Enter Password"
             value={connectionAddress}
             onChangeText={setConnectionAddress}

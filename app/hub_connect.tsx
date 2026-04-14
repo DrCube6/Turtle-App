@@ -1,31 +1,36 @@
-import { useBLE } from "@/hooks/useBLE";
 import { router } from "expo-router";
 import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
+import React from 'react';
+import { FlatList, Alert, Platform } from 'react-native';
+import { useBLE } from '../hooks/useBLE';
+import { Device } from 'react-native-ble-plx';
 
 export default function HubConnect() {
-  //ble const
-  const {
-    devices,
-    connectedDevice,
-    isScanning,
-    connectToDevice,
-    startScan
-  } = useBLE();
 
-  const handleConnect = async (device: Device) => {
+    const {
+      devices,
+      isScanning,
+      connectedDevice,
+      startScan,
+      connectToDevice,
+    } = useBLE();
+  
+    const handleConnect = async (device: Device) => {
       const connected = await connectToDevice(device);
       if (connected) {
-        console.log("Connected to device:", device.name);
+        // Navigate to monitor screen after successful connection
+        router.push('/dashboard');
       }
     };
 
+    
   return (
     <YStack
       flex={1}
       backgroundColor="$gray12"
       items={"center"}
       padding="$4"
-      paddingTop={60}
+      paddingTop={Platform.OS === "android" ? 30 : 60}
       gap="$4"
       width={"100%"}
     >
@@ -42,38 +47,52 @@ export default function HubConnect() {
         paddingBottom={10}
         rounded={40}
       >
-        <YStack
-          flex={1}
-          width="100%"
-          items="center"
-          gap="$4"
-          //padding="$5"
-        >
-          <Text color="white" fontSize="$5" fontWeight="bold">
-            Connect to Hub
-          </Text>
+         {/* Top Header */}
+        <YStack gap={10} width="100%">
+          <XStack justify="space-between">
+            <Text color="white" fontSize="$5" fontWeight="bold">
+              Connect to Hub
+            </Text>
+            <Button
+              size="$2"
+              theme="dark_yellow"
+              onPress={startScan}
+              disabled={isScanning}
+              disabledStyle={{ opacity: 0.3 }}
+            >
+              Scan
+            </Button>
+          </XStack>
           <Separator
             borderColor="gray"
             borderBottomWidth={3}
             alignSelf="stretch"
             rounded="$2"
           />
+        </YStack>
           <ScrollView width="100%" backgroundColor="transparent">
             <YStack gap="$4">
-              <Text color="gray" fontSize="$3" alignSelf="center">
-                No Bluetooth devices found
-              </Text>
-              <Button
-                onPress={() => router.push("/dashboard")}
-                theme="dark_green"
-                size="$3"
-                alignSelf="center"
-              >
-                device102-3917-493
-              </Button>
+              {devices.length > 0 ? (
+                devices.map((device) => (
+                  <Button
+                    key={device.id}
+                    onPress={() => handleConnect(device)}
+                    disabled={!!connectedDevice}
+                    theme="dark_green"
+                    size="$3"
+                    alignSelf="center"
+                  >
+                    {device.name || device.id}
+                  </Button>
+                ))
+              ) : (
+                <Text color="gray" fontSize="$3" alignSelf="center">
+                  No Bluetooth devices found
+                </Text>
+              )}
             </YStack>
           </ScrollView>
-        </YStack>
+
         {/* Bottom Buttons */}
         <YStack width="100%" justify="flex-end" flex={1}>
           <YStack gap={10} paddingBottom={10}>

@@ -1,14 +1,18 @@
 import { router } from "expo-router";
+import { Platform } from "react-native";
+import { useBLE } from "../hooks/useBLE";
 import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
 
 export default function Dashboard() {
+  const { connectedDevice } = useBLE();
+
   return (
     <YStack
       flex={1}
       backgroundColor="$gray12"
       items={"center"}
       padding="$4"
-      paddingTop={60}
+      paddingTop={Platform.OS === "android" ? 30 : 60}
       gap="$4"
       width={"100%"}
     >
@@ -93,6 +97,11 @@ export default function Dashboard() {
         {/* Scrollview content */}
         <ScrollView width="100%" backgroundColor="">
           <YStack gap="$4">
+            <Button theme="dark_yellow" onPress={() => router.push("/node")}>
+                <Text color="white" fontSize="$4">
+                  Connected Device: {connectedDevice}
+                </Text>
+            </Button>
             <Button theme="dark_yellow" onPress={() => router.push("/node")}>
               <XStack justify="space-between" flex={1}>
                 <Text color="white" fontSize="$4">

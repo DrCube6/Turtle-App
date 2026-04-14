@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
+import { Platform } from "react-native";
 import { SizableText, Spinner, YStack } from "tamagui";
 
 export default function Index() {
@@ -8,7 +9,7 @@ export default function Index() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      router.replace("/login");
+      router.replace("/dashboard");
     }, 200);
 
     return () => clearTimeout(timer);
@@ -20,7 +21,7 @@ export default function Index() {
       backgroundColor="$gray12"
       items={"center"}
       padding="$4"
-      paddingTop={60}
+      paddingTop={Platform.OS === "android" ? 30 : 60}
       gap="$4"
       width={"100%"}
     >

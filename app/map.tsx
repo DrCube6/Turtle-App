@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { Platform } from "react-native";
 import { Button, Separator, Text, XStack, YStack } from "tamagui";
 
 export default function Map() {
@@ -8,7 +9,7 @@ export default function Map() {
       backgroundColor="$gray12"
       items={"center"}
       padding="$4"
-      paddingTop={60}
+      paddingTop={Platform.OS === "android" ? 30 : 60}
       gap="$4"
       width={"100%"}
     >
@@ -29,7 +30,7 @@ export default function Map() {
           flex={1}
           width="100%"
           items="center"
-          backgroundColor="blue"
+          backgroundColor=""
           gap="$4"
         >
           <Text color="white" fontSize="$5" fontWeight="bold">

@@ -27,6 +27,7 @@
     "@tamagui/stacks": "^2.0.0-rc.11",
     "@tamagui/text": "^2.0.0-rc.11",
     "expo": "~54.0.33",
+    "expo-build-properties": "~1.0.10",
     "expo-constants": "~18.0.13",
     "expo-dev-client": "~6.0.20",
     "expo-font": "~14.0.11",

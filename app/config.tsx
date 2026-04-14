@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { Platform } from "react-native";
 import {
   Button,
   Input,
@@ -16,7 +17,7 @@ export default function Config() {
       backgroundColor="$gray12"
       items={"center"}
       padding="$4"
-      paddingTop={60}
+      paddingTop={Platform.OS === "android" ? 30 : 60}
       gap="$4"
       width={"100%"}
     >
@@ -55,15 +56,15 @@ export default function Config() {
           />
         </YStack>
         {/* Scrollview content */}
-        <ScrollView width="100%" backgroundColor="">
+        <ScrollView width="100%" backgroundColor="transparent">
           <YStack gap="$2">
             <Text fontSize="$3" color="white">
               Password
             </Text>
             <Input
-              theme="black"
+              theme="dark_gray"
               width={"100%"}
-              size="$2"
+              size="$4"
               placeholder="Enter Password"
             />
           </YStack>
