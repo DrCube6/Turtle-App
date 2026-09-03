@@ -5,6 +5,7 @@ import { Platform, PermissionsAndroid, Alert } from 'react-native';
 const bleManager = new BleManager();
 
 export function useBLE() {
+  
   const [devices, setDevices] = useState<Device[]>([]);
   const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
   const [isScanning, setIsScanning] = useState(false);

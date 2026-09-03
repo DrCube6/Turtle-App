@@ -98,11 +98,6 @@ export default function Dashboard() {
         <ScrollView width="100%" backgroundColor="">
           <YStack gap="$4">
             <Button theme="dark_yellow" onPress={() => router.push("/node")}>
-                <Text color="white" fontSize="$4">
-                  {/* Connected Device: {connectedDevice} */}
-                </Text>
-            </Button>
-            <Button theme="dark_yellow" onPress={() => router.push("/node")}>
               <XStack justify="space-between" flex={1}>
                 <Text color="white" fontSize="$4">
                   Node 01
