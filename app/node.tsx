@@ -1,7 +1,13 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
 
 export default function Node() {
+
+  //get params
+  const { node, battery, temperature, humidity } = useLocalSearchParams();
+
+  console.log("selected Node: ", node);
+
   return (
     <YStack
       flex={1}
@@ -30,10 +36,10 @@ export default function Node() {
           <YStack gap={10}>
             <XStack justify="space-between" width="100%">
               <Text color="white" fontSize="$5" fontWeight="bold">
-                Node 01
+                Node {node}
               </Text>
               <Text color="white" fontSize="$5" fontWeight="bold">
-                100%
+                {battery}%
               </Text>
             </XStack>
             <Separator
@@ -52,7 +58,7 @@ export default function Node() {
                     Temperature
                   </Text>
                   <Text color="white" fontSize="$4">
-                    75F
+                    {temperature}F
                   </Text>
                 </XStack>
               </Button>
@@ -62,7 +68,7 @@ export default function Node() {
                     Humidity
                   </Text>
                   <Text color="white" fontSize="$4">
-                    100%
+                    {humidity}%
                   </Text>
                 </XStack>
               </Button>

@@ -7,6 +7,8 @@ import * as NavigationBar from "expo-navigation-bar";
 import { Platform } from "react-native";
 import { useEffect } from "react";
 
+import { BLEProvider } from "@/context/BLEContext";
+
 export default function RootLayout() {
   // hide nav bar on android
 useEffect(() => {
@@ -30,6 +32,7 @@ useEffect(() => {
   }, []);
 
   return (
+    <BLEProvider>
       <TamaguiProvider config={config} defaultTheme="light">
         <View flex={1} backgroundColor="$gray12">
         <Stack
@@ -49,13 +52,13 @@ useEffect(() => {
           <Stack.Screen name="dashboard" options={{ headerShown: false }} />
           <Stack.Screen name="map" options={{ headerShown: false }} />
           <Stack.Screen name="config" options={{ headerShown: false }} />
-          <Stack.Screen name="config_edit" options={{ headerShown: false }} />
+          <Stack.Screen name="init" options={{ headerShown: false }} />
           <Stack.Screen name="node" options={{ headerShown: false }} />
           <Stack.Screen name="graph" options={{ headerShown: false }} />
-          <Stack.Screen name="ble_test" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" options={{ headerShown: false }} />
         </Stack>
         </View>
       </TamaguiProvider>
+    </BLEProvider>
   );
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { LoginResponse } from '../types';
 import * as SecureStore from 'expo-secure-store';
 import { APP_CONFIG } from '../config/appConfig';
+import { router } from '@/.expo/types/router';
 
 const STORAGE_KEY = 'turtle_app_login_state';
 
@@ -35,6 +36,18 @@ export function useLogin() {
   async function handleLogin() {
     if (!username || !password) {
       setStatusText('Please enter username and password');
+      return;
+    }
+
+    // if input dev login for debugging
+    if (username == "Dev" && password == "123") {
+      setStatusText('dev login complete');
+      setLoginState({
+        status: 1,
+        appKey: "dev_app_key",
+        hatchery: 123,
+        message: "Dev login successful"
+      });
       return;
     }
 
@@ -86,7 +99,9 @@ export function useLogin() {
     }
   }
 
-  const isLoggedIn = Boolean(loginState?.appKey && typeof loginState?.hatchery === 'number');
+  //set login state
+  const isLoggedIn = Boolean(loginState?.appKey && typeof loginState?.hatchery == 'number');
+
 
   return {
     username,

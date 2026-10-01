@@ -77,7 +77,7 @@ export default function Login() {
             Username
           </Text>
           <Input
-            theme="dark_gray"
+            theme="dark"
             outline={loginFailed ? "1px solid red" : "null"}
             width={"100%"}
             size="$4"
@@ -89,7 +89,7 @@ export default function Login() {
             Password
           </Text>
           <Input
-            theme="dark_gray"
+            theme="dark"
             outline={loginFailed ? "1px solid red" : "null"}
             width={"100%"}
             size="$4"
@@ -97,9 +97,6 @@ export default function Login() {
             value={password}
             onChangeText={setPassword}
           />
-          <Text fontSize="$3" color="white">
-            {statusText}
-          </Text>
         </YStack>
         {/* Bottom Buttons */}
         <YStack
@@ -111,7 +108,8 @@ export default function Login() {
           gap={10}
         >
           <XStack
-            justify="flex-end"
+            justify="space-between"
+            alignItems="center"
             padding={10}
             rounded={20}
             borderWidth={2}
@@ -119,6 +117,12 @@ export default function Login() {
             width="100%"
             gap={10}
           >
+          <Text fontSize="$3" color="white">
+            {statusText}
+          </Text>
+          <XStack
+            gap={10}
+            >
             <Separator
               vertical
               borderColor="gray"
@@ -137,6 +141,7 @@ export default function Login() {
             >
               {isLoggingIn ? "Logging in..." : "Login"}
             </Button>
+            </XStack>
           </XStack>
         </YStack>
       </YStack>

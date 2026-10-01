@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
 import React from 'react';
 import { Platform } from 'react-native';
-import { useBLE } from '../hooks/useBLE';
+import { useBLE } from '../context/BLEContext';
 import { Device } from 'react-native-ble-plx';
 
 export default function HubConnect() {
@@ -13,6 +13,7 @@ export default function HubConnect() {
       connectedDevice,
       startScan,
       connectToDevice,
+      disconnect
     } = useBLE();
   
     const handleConnect = async (device: Device) => {
@@ -22,6 +23,12 @@ export default function HubConnect() {
         router.push('/dashboard');
       }
     };
+
+    //handle logout
+    const handleLogout = () => {
+      disconnect();
+      router.push("/login");
+    }
 
     
   return (
@@ -94,7 +101,7 @@ export default function HubConnect() {
           </ScrollView>
 
         {/* Bottom Buttons */}
-        <YStack width="100%" justify="flex-end" flex={1}>
+        <YStack width="100%" justify="flex-end">
           <YStack gap={10} paddingBottom={10}>
             <XStack
               borderWidth={2}
@@ -115,7 +122,7 @@ export default function HubConnect() {
               <Button
                 size="$3"
                 theme="dark_gray"
-                onPress={() => router.push("/login")}
+                onPress={handleLogout}
               >
                 Log Out
               </Button>
