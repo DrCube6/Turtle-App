@@ -25,7 +25,8 @@ export function useLogin() {
         const parsed: LoginResponse = JSON.parse(saved);
         if (parsed.status === 1 && parsed.appKey && typeof parsed.hatchery === 'number') {
           setLoginState(parsed);
-          setStatusText('Logged in (from storage)');
+          //logged in from storage
+          setStatusText('Logged in');
         }
       }
     } catch (e) {
@@ -59,25 +60,45 @@ export function useLogin() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify({
-          username,
+          // The API expects "email" as the field name, even though the
+          // value here is really just the sensor-app username (confirmed
+          // against the working testLogin.py script, which sends the same
+          // "SensorApp"-style value under an "email" key).
+          email: username,
           password,
         }),
       });
 
+      // Read the raw body once so we can show it for debugging if JSON
+      // parsing fails or the server returned a non-OK status with a
+      // useful error message in the body.
+      const rawText = await response.text();
+
       if (!response.ok) {
+        console.error(`Login HTTP error ${response.status}:`, rawText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const result: LoginResponse = await response.json();
+      let result: LoginResponse;
+
+      try {
+        result = JSON.parse(rawText);
+      } catch (parseError) {
+        console.error('Login response was not valid JSON:', rawText);
+        setStatusText('Server did not return valid JSON. See console for details.');
+        return;
+      }
 
       if (result.status === 1 && result.appKey && typeof result.hatchery === 'number') {
         // Save securely
         await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(result));
 
+        //login state saved
         setLoginState(result);
-        setStatusText('Login successful! Credentials saved securely.');
+        setStatusText('Logged in.');
       } else {
         setStatusText(result.message ?? 'Login failed or access denied.');
       }

@@ -8,6 +8,7 @@ import React, {
 
 import {
   BleManager,
+  BleErrorCode,
   Device,
 } from 'react-native-ble-plx';
 
@@ -461,7 +462,15 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Reset transfer state
+    if (isTransferring) {
+      console.log('Transfer already in progress, ignoring duplicate requestCSV call');
+      return;
+    }
+
+    // Reset transfer state - including any leftover watchdog from a
+    // previous transfer, so a stale timer can't fire a retry against
+    // data that's about to be cleared below.
+    clearWatchdog();
     chunksRef.current = new Map();
     expectedTotalRef.current = 0;
     retryCountRef.current = 0;
@@ -477,7 +486,15 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
       TX_UUID,
       (error, characteristic) => {
         if (error) {
-          console.error('Chunk monitor error:', error);
+          // Expected whenever we intentionally remove() an active monitor
+          // (a fresh requestCSV call, disconnect, etc.) - the subscription
+          // reports its own cancellation as a final callback. Not a real
+          // failure, so don't alarm the console or user over it.
+          if (error.errorCode === BleErrorCode.OperationCancelled) {
+            console.log('Chunk monitor stopped (expected - subscription was replaced or torn down)');
+          } else {
+            console.error('Chunk monitor error:', error);
+          }
           return;
         }
 

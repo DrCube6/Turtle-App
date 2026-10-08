@@ -15,7 +15,7 @@ import {
 
 export default function Init() {
   const { disconnect, writeConfig, isWritingConfig } = useBLE();
-  const { loginState } = useLogin();
+  const { loginState, logout } = useLogin();
 
   // One field per row in init.csv (Parameters,Value)
   const [userId, setUserId] = useState('');
@@ -27,6 +27,7 @@ export default function Init() {
   // AUTH KEY still comes from the cloud login response (useLogin) and is
   // still needed later when we build the CSV to send back to the ESP32 -
   // it's just no longer shown as its own input field per your request.
+  //const authKey = "SiNGzYAVbOHB2rWemXy6dUL7gpZJasjt";
   const [authKey, setAuthKey] = useState('');
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export default function Init() {
 
   //handle logout
   const handleLogout = () => {
+    logout();
     disconnect();
     router.push("/login");
   };

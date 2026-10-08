@@ -4,6 +4,7 @@ import React from 'react';
 import { Platform } from 'react-native';
 import { useBLE } from '../context/BLEContext';
 import { Device } from 'react-native-ble-plx';
+import { useLogin } from '../hooks/useLogin';
 
 export default function HubConnect() {
 
@@ -15,7 +16,11 @@ export default function HubConnect() {
       connectToDevice,
       disconnect
     } = useBLE();
-  
+
+    const {
+      logout
+    } = useLogin();
+    
     const handleConnect = async (device: Device) => {
       const connected = await connectToDevice(device);
       if (connected) {
@@ -26,6 +31,7 @@ export default function HubConnect() {
 
     //handle logout
     const handleLogout = () => {
+      logout();
       disconnect();
       router.push("/login");
     }
