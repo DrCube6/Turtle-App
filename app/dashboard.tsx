@@ -2,25 +2,13 @@ import { useEffect } from "react";
 import { Text, Button, YStack, Separator, XStack, ScrollView } from "tamagui";
 
 import { useBLE } from "@/context/BLEContext";
+import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 import { Platform } from "react-native";
 
-//my custom esp32 uuids
-const SERVICE_UUID = "12345678-1234-1234-1234-123456789abc";
-const TX_UUID = "87654321-4321-4321-4321-cba987654321";
-
 export default function Dashboard() {
-  const {
-    connectedDevice,
-    receivedData,
-    requestCSV,
-    sensorData,
-    isMonitoring,
-    isTransferring,
-    csvType,
-    startMonitoring,
-    stopMonitoring,
-  } = useBLE();
+  const { connectedDevice, requestCSV, sensorData, isTransferring, csvType } =
+    useBLE();
 
   // Only the most recent reading per node (HR === 1)
   const latestNodes = sensorData.filter((row) => row.hr === 1);
@@ -51,17 +39,22 @@ export default function Dashboard() {
     //kick off the chunked CSV transfer as soon as we're connected
     console.log("Dashboard opened — requesting CSV");
     requestCSV();
+    // Only re-run on a new connection - requestCSV is recreated every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectedDevice]);
 
   // Once a transfer finishes, check what kind of CSV came back.
   // If it's the ESP32's initial/unconfigured CSV, send the user to
   // the config screen instead of showing (stale/empty) dashboard data.
+  // Only while focused: when /init is open on top (Config > Edit), the
+  // init screen handles the hub's answer itself and must not be replaced.
+  const isFocused = useIsFocused();
   useEffect(() => {
-    if (csvType === "config") {
-      console.log("Dashboard: initial config CSV detected, routing to /config");
+    if (isFocused && csvType === "config") {
+      console.log("Dashboard: initial config CSV detected, routing to /init");
       router.replace("/init");
     }
-  }, [csvType]);
+  }, [csvType, isFocused]);
 
   // Avoid flashing an empty/stale dashboard while a transfer is in
   // progress or right before the redirect above kicks in.
@@ -81,7 +74,6 @@ export default function Dashboard() {
           backgroundColor="$gray12"
           borderWidth={2}
           borderColor={"white"}
-          items={"flex-start"}
           width="100%"
           gap="$4"
           padding="$5"
@@ -186,6 +178,7 @@ export default function Dashboard() {
           <YStack gap="$4">
             {latestFieldNodes.map((row) => (
               <Button
+                key={row.node}
                 theme="dark_yellow"
                 onPress={() =>
                   router.push({
@@ -213,7 +206,7 @@ export default function Dashboard() {
         </ScrollView>
         {/* Bottom Buttons */}
         <YStack width="100%" justify="flex-end">
-          <YStack gap={10} paddingBottom={10} backgroundColor="">
+          <YStack gap={10} paddingBottom={10}>
             <XStack
               borderWidth={2}
               justify="space-evenly"

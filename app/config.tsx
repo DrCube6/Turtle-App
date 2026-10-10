@@ -10,7 +10,23 @@ import {
   YStack,
 } from "tamagui";
 
+import { useBLE } from "@/context/BLEContext";
+import { useLogin } from "@/hooks/useLogin";
+
 export default function Config() {
+  const { disconnect } = useBLE();
+  const { logout } = useLogin();
+
+  //handle logout
+  const handleLogout = async () => {
+    // Await so the saved login is gone before /login mounts and re-reads it
+    await logout();
+    await disconnect();
+    // Clear the stack so Android's back button can't return into the app
+    router.dismissAll();
+    router.replace("/login");
+  };
+
   return (
     <YStack
       flex={1}
@@ -40,13 +56,19 @@ export default function Config() {
             <Text color="white" fontSize="$5" fontWeight="bold">
               Configure
             </Text>
-            <Button
-              size="$2"
-              theme="dark_yellow"
-              onPress={() => router.push("/config_edit")}
-            >
-              Edit
-            </Button>
+            <XStack gap={10}>
+              <Button size="$2" theme="dark_red" onPress={handleLogout}>
+                Log Out
+              </Button>
+              <Button
+                size="$2"
+                theme="dark_yellow"
+                // No standalone edit screen exists - init is the config form
+                onPress={() => router.push("/init")}
+              >
+                Edit
+              </Button>
+            </XStack>
           </XStack>
           <Separator
             borderColor="gray"

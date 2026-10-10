@@ -2,6 +2,8 @@ import { router } from "expo-router";
 import { Platform } from "react-native";
 import { Button, Separator, Text, XStack, YStack } from "tamagui";
 
+import { SensorMap } from "@/components/SensorMap";
+
 export default function Map() {
   return (
     <YStack
@@ -26,13 +28,8 @@ export default function Map() {
         paddingBottom={10}
         rounded={40}
       >
-        <YStack
-          flex={1}
-          width="100%"
-          items="center"
-          backgroundColor=""
-          gap="$4"
-        >
+        {/* Top Header */}
+        <YStack width="100%" items="center" gap="$4">
           <Text color="white" fontSize="$5" fontWeight="bold">
             Sensor Map
           </Text>
@@ -43,8 +40,19 @@ export default function Map() {
             rounded="$2"
           />
         </YStack>
+        {/* Map - fills the space between the header and the buttons */}
+        <YStack
+          flex={1}
+          width="100%"
+          borderWidth={2}
+          borderColor="gray"
+          rounded={20}
+          overflow="hidden"
+        >
+          <SensorMap />
+        </YStack>
         {/* Bottom Buttons */}
-        <YStack width="100%" justify="flex-end" flex={1}>
+        <YStack width="100%" justify="flex-end">
           <YStack gap={10} paddingBottom={10}>
             <XStack
               borderWidth={2}

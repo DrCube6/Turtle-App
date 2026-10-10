@@ -13,7 +13,7 @@ export default function Index() {
     }, 200);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [router]);
 
   return (
     <YStack

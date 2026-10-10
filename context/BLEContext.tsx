@@ -20,6 +20,17 @@ import {
 
 import { Buffer } from 'buffer';
 
+import {
+  buildConfigCSV,
+  detectCSVType,
+  parseCSV,
+  type ConfigFields,
+  type CSVType,
+  type SensorData,
+} from '@/utils/csv';
+
+export type { ConfigFields, SensorData } from '@/utils/csv';
+
 // UUIDs for the ESP32 service and characteristics
 const SERVICE_UUID = '12345678-1234-1234-1234-123456789abc';
 const TX_UUID = '87654321-4321-4321-4321-cba987654321';
@@ -36,39 +47,26 @@ const WATCHDOG_MS = 1500;
 // Same payload size used for the read path, kept conservative for MTU safety
 const WRITE_CHUNK_PAYLOAD = 180;
 
-// Row order the ESP32's init.csv expects - must match exactly
-const CONFIG_FIELD_LABELS = [
-  'ID (For Login User)',
-  'Password (For Login User)',
-  'WIFI SSID',
-  'WIFI PASS',
-  'AUTH KEY (From Login)',
-  'Sample Rate (in Minutes)',
-] as const;
-
-export type ConfigFields = {
-  userId: string;
-  userPassword: string;
-  wifiSsid: string;
-  wifiPass: string;
-  authKey: string;
-  sampleRate: string;
+// After the app writes init.csv, the hub validates it and then advertises
+// either data.csv (accepted) or a blank init.csv (rejected). These control how
+// the app waits for that verdict. Mutable so tests can shorten them.
+export const CONFIG_RESULT_TIMING = {
+  // Give the hub time to process WRITE_DONE before asking, so we don't read
+  // back the old blank init.csv it was advertising before the write
+  settleMs: 3000,
+  // Pause between attempts while the hub isn't answering yet
+  pollIntervalMs: 2000,
+  // Give up after this long with no data.csv / init.csv
+  timeoutMs: 90000,
 };
 
-type SensorData = {
-  hr: number;
-  node: number;
-  battery: number;
-  temperature: number;
-  humidity: number;
-};
+// Outcome of one CSV transfer
+export type TransferResult = 'sensor' | 'config' | 'unrecognised' | 'failed';
 
-// The exact header row the ESP32 sends for real sensor-data CSVs.
-// Anything that doesn't match this is treated as the initial/config CSV.
-const SENSOR_CSV_HEADER =
-  'HR (Most Recent 1 | Oldest 24),Node ID (#),Battery,Temperature,Humidity';
+// Outcome of waiting for the hub's verdict on a config write
+export type ConfigResult = 'accepted' | 'rejected' | 'timeout' | 'cancelled';
 
-type CSVType = 'sensor' | 'config' | null;
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 type BLEContextType = {
   devices: Device[];
@@ -79,9 +77,11 @@ type BLEContextType = {
   isMonitoring: boolean;
   isTransferring: boolean;
   isWritingConfig: boolean;
+  isAwaitingConfigResult: boolean;
   csvType: CSVType;
 
   startScan: () => Promise<void>;
+  clearScan: () => void;
   connectToDevice: (device: Device) => Promise<Device | null>;
   startMonitoring: (
     serviceUUID: string,
@@ -89,8 +89,10 @@ type BLEContextType = {
   ) => Promise<void>;
   stopMonitoring: () => void;
   disconnect: () => Promise<void>;
-  requestCSV: () => Promise<void>;
+  requestCSV: (options?: { quiet?: boolean }) => Promise<void>;
+  requestCSVAndWait: (options?: { quiet?: boolean }) => Promise<TransferResult>;
   writeConfig: (fields: ConfigFields) => Promise<boolean>;
+  waitForConfigResult: () => Promise<ConfigResult>;
   requestPermissions: () => Promise<boolean>;
 };
 
@@ -107,6 +109,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
   const [isMonitoring, setIsMonitoring] = useState(false);
 
   const subscriptionRef = useRef<any>(null);
+  const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [sensorData, setSensorData] = useState<SensorData[]>([]);
 
@@ -122,6 +125,20 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
   const [isTransferring, setIsTransferring] = useState(false);
   const [csvType, setCsvType] = useState<CSVType>(null);
   const [isWritingConfig, setIsWritingConfig] = useState(false);
+  const [isAwaitingConfigResult, setIsAwaitingConfigResult] = useState(false);
+
+  // Resolves whoever is awaiting the current transfer (requestCSVAndWait)
+  const transferDoneRef = useRef<((result: TransferResult) => void) | null>(null);
+  // Quiet transfers (background polling) don't pop up failure alerts
+  const quietRef = useRef(false);
+  // Set by disconnect() to stop waitForConfigResult's polling loop
+  const configWaitCancelledRef = useRef(false);
+
+  const settleTransfer = (result: TransferResult) => {
+    const resolve = transferDoneRef.current;
+    transferDoneRef.current = null;
+    resolve?.(result);
+  };
 
   // -------------------------
   // Permissions
@@ -198,12 +215,33 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    setTimeout(() => {
+    // Track the auto-stop timer so clearScan (or a newer scan) can cancel
+    // it - otherwise an old timer could cut a later scan short
+    if (scanTimerRef.current) {
+      clearTimeout(scanTimerRef.current);
+    }
 
+    scanTimerRef.current = setTimeout(() => {
+
+      scanTimerRef.current = null;
       bleManager.stopDeviceScan();
       setIsScanning(false);
 
     }, 12000);
+  };
+
+  // Stop any running scan and forget the discovered devices, so a stale
+  // list isn't shown the next time the hub screen opens
+  const clearScan = () => {
+
+    if (scanTimerRef.current) {
+      clearTimeout(scanTimerRef.current);
+      scanTimerRef.current = null;
+    }
+
+    bleManager.stopDeviceScan();
+    setIsScanning(false);
+    setDevices([]);
   };
 
   // -------------------------
@@ -316,45 +354,6 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
   };
 
   // -------------------------
-  // Parse CSV
-  // -------------------------
-
-  const parseCSV = (csv: string): SensorData[] => {
-    const lines = csv.trim().split('\n');
-
-    // Remove header
-    const rows = lines.slice(1);
-
-    return rows.map(line => {
-      // Column order: HR, Node ID, Battery, Temperature, Humidity
-      const [hr, node, battery, temperature, humidity] = line.split(',');
-
-      return {
-        hr: Number(hr),
-        node: Number(node),
-        battery: Number(battery),
-        temperature: Number(temperature),
-        humidity: Number(humidity),
-      };
-    });
-  };
-
-  // -------------------------
-  // Detect CSV type (sensor data vs. initial/config CSV)
-  // -------------------------
-
-  const detectCSVType = (csv: string): CSVType => {
-    const firstLine = csv.trim().split('\n')[0]?.trim();
-
-    if (firstLine === SENSOR_CSV_HEADER) {
-      return 'sensor';
-    }
-
-    // Anything else (e.g. the "Parameters,Value" initial CSV) is config
-    return 'config';
-  };
-
-  // -------------------------
   // Chunked CSV transfer helpers
   // -------------------------
 
@@ -398,9 +397,18 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
 
     if (type === 'sensor') {
       setSensorData(parseCSV(decoded));
-    } else {
+    } else if (type === 'config') {
       // Config/initial CSV - no sensor rows to show, clear any stale data
       setSensorData([]);
+    } else {
+      // Unrecognised header - keep whatever data we had and don't redirect
+      console.warn('Unrecognised CSV from hub, first line:', decoded.split(/\r?\n/)[0]);
+      if (!quietRef.current) {
+        Alert.alert(
+          'Unrecognised data',
+          'The hub sent a file the app does not recognise. Try syncing again.'
+        );
+      }
     }
 
     setIsTransferring(false);
@@ -409,6 +417,22 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
       dataSubRef.current.remove();
       dataSubRef.current = null;
     }
+
+    settleTransfer(type ?? 'unrecognised');
+  };
+
+  // Shared exit for a transfer that gave up
+  const failTransfer = (title: string, message: string) => {
+    if (!quietRef.current) {
+      Alert.alert(title, message);
+    }
+    setIsTransferring(false);
+    clearWatchdog();
+    if (dataSubRef.current) {
+      dataSubRef.current.remove();
+      dataSubRef.current = null;
+    }
+    settleTransfer('failed');
   };
 
   const armWatchdog = (device: Device) => {
@@ -419,6 +443,34 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
   };
 
   const requestRetry = async (device: Device) => {
+    // No chunk has arrived yet, so we don't know the total and can't ask for
+    // specific indices. Without this, an empty "missing" list would finish
+    // the transfer with an empty CSV, which detectCSVType reads as 'config'
+    // and the dashboard would wrongly redirect to the setup screen.
+    if (expectedTotalRef.current === 0) {
+      if (retryCountRef.current >= MAX_RETRY_ROUNDS) {
+        console.warn('Giving up - no chunks received from hub');
+        failTransfer('Transfer failed', 'No data received from the hub.');
+        return;
+      }
+
+      retryCountRef.current += 1;
+      console.log('No chunks yet, resending START');
+
+      try {
+        await device.writeCharacteristicWithResponseForService(
+          SERVICE_UUID,
+          CONTROL_UUID,
+          Buffer.from('START', 'utf8').toString('base64')
+        );
+      } catch (err) {
+        console.error('START resend failed:', err);
+      }
+
+      armWatchdog(device);
+      return;
+    }
+
     const missing = getMissingIndices();
 
     if (missing.length === 0) {
@@ -428,9 +480,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
 
     if (retryCountRef.current >= MAX_RETRY_ROUNDS) {
       console.warn('Giving up after max retry rounds, missing:', missing);
-      Alert.alert('Transfer incomplete', `Missing ${missing.length} chunk(s) after retries.`);
-      setIsTransferring(false);
-      clearWatchdog();
+      failTransfer('Transfer incomplete', `Missing ${missing.length} chunk(s) after retries.`);
       return;
     }
 
@@ -456,16 +506,20 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
   // Request CSV (chunked transfer)
   // -------------------------
 
-  const requestCSV = async () => {
+  const requestCSV = async (options?: { quiet?: boolean }) => {
     if (!connectedDevice) {
       console.log('No device connected');
+      settleTransfer('failed');
       return;
     }
 
     if (isTransferring) {
+      // Any waiter stays attached and is settled when that transfer ends
       console.log('Transfer already in progress, ignoring duplicate requestCSV call');
       return;
     }
+
+    quietRef.current = options?.quiet ?? false;
 
     // Reset transfer state - including any leftover watchdog from a
     // previous transfer, so a stale timer can't fire a retry against
@@ -530,32 +584,68 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('Failed to write START:', err);
       setIsTransferring(false);
+      if (dataSubRef.current) {
+        dataSubRef.current.remove();
+        dataSubRef.current = null;
+      }
+      settleTransfer('failed');
       return;
     }
 
     armWatchdog(connectedDevice);
   };
 
+  // Like requestCSV, but resolves with what came back once the transfer ends
+  const requestCSVAndWait = (
+    options?: { quiet?: boolean }
+  ): Promise<TransferResult> => {
+    const done = new Promise<TransferResult>(resolve => {
+      transferDoneRef.current = resolve;
+    });
+    requestCSV(options);
+    return done;
+  };
+
+  // -------------------------
+  // Wait for the hub's verdict after a config write
+  // -------------------------
+
+  // The hub answers a config write by advertising data.csv (accepted) or a
+  // blank init.csv (rejected - asking for correct info). Poll until one of
+  // those arrives. Transfers that fail or come back unrecognised (the hub is
+  // still busy validating) are retried until CONFIG_RESULT_TIMING.timeoutMs.
+  const waitForConfigResult = async (): Promise<ConfigResult> => {
+    configWaitCancelledRef.current = false;
+    setIsAwaitingConfigResult(true);
+
+    try {
+      await sleep(CONFIG_RESULT_TIMING.settleMs);
+
+      const deadline = Date.now() + CONFIG_RESULT_TIMING.timeoutMs;
+
+      while (Date.now() < deadline) {
+        if (configWaitCancelledRef.current) return 'cancelled';
+
+        const result = await requestCSVAndWait({ quiet: true });
+
+        if (configWaitCancelledRef.current) return 'cancelled';
+        if (result === 'sensor') return 'accepted';
+        if (result === 'config') return 'rejected';
+
+        console.log(`No verdict from hub yet (${result}), polling again`);
+        await sleep(CONFIG_RESULT_TIMING.pollIntervalMs);
+      }
+
+      return 'timeout';
+
+    } finally {
+      setIsAwaitingConfigResult(false);
+    }
+  };
+
   // -------------------------
   // Write config CSV back to ESP32
   // -------------------------
-
-  const buildConfigCSV = (fields: ConfigFields): string => {
-    const values = [
-      fields.userId,
-      fields.userPassword,
-      fields.wifiSsid,
-      fields.wifiPass,
-      fields.authKey,
-      fields.sampleRate,
-    ];
-
-    const rows = CONFIG_FIELD_LABELS.map(
-      (label, i) => `${label},${values[i]}`
-    );
-
-    return ['Parameters,Value', ...rows].join('\n');
-  };
 
   const writeConfig = async (fields: ConfigFields): Promise<boolean> => {
     if (!connectedDevice) {
@@ -606,6 +696,10 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
 
       console.log('Config write complete');
 
+      // The hub is configured now. Clear the 'config' flag from the transfer
+      // that sent us to /init, or the dashboard would redirect straight back.
+      setCsvType(null);
+
       return true;
 
     } catch (error: any) {
@@ -646,6 +740,9 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
 
   const disconnect = async () => {
 
+    // Stop any wait for a config verdict (e.g. logging out from /init)
+    configWaitCancelledRef.current = true;
+
     if (!connectedDevice) {
       return;
     }
@@ -657,6 +754,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
       // about to disconnect from.
       stopMonitoring();
       clearWatchdog();
+      settleTransfer('failed');
 
       if (dataSubRef.current) {
         dataSubRef.current.remove();
@@ -732,15 +830,19 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
         isMonitoring,
         isTransferring,
         isWritingConfig,
+        isAwaitingConfigResult,
         csvType,
 
         startScan,
+        clearScan,
         connectToDevice,
         startMonitoring,
         stopMonitoring,
         disconnect,
         requestCSV,
+        requestCSVAndWait,
         writeConfig,
+        waitForConfigResult,
         requestPermissions,
       }}
     >

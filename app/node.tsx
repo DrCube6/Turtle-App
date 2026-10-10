@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { Dimensions } from "react-native";
 import { LineChart } from "react-native-chart-kit";
-import { ScrollView, Separator, Text, XStack, YStack } from "tamagui";
+import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
 
 import { useBLE } from "@/context/BLEContext";
 
@@ -33,7 +33,13 @@ export default function Node() {
   // All HR readings (1 = most recent, up to 24 = oldest) for this node,
   // sorted oldest -> newest so the chart reads left-to-right as a timeline
   const nodeHistory = sensorData
-    .filter(row => row.node === nodeNum)
+    .filter(row =>
+      row.node === nodeNum &&
+      row.hr >= 1 && row.hr <= 24 &&
+      // react-native-chart-kit crashes on NaN, so drop malformed CSV rows
+      Number.isFinite(row.temperature) &&
+      Number.isFinite(row.humidity)
+    )
     .sort((a, b) => b.hr - a.hr);
 
   const hasHistory = nodeHistory.length > 0;
@@ -92,7 +98,7 @@ export default function Node() {
           </YStack>
 
           {/* Scrollview content - latest values, then the two history graphs */}
-          <ScrollView width="100%" backgroundColor="">
+          <ScrollView width="100%">
             <YStack gap="$4" paddingBottom={20}>
 
               {/* Latest values */}
@@ -178,6 +184,60 @@ export default function Node() {
 
             </YStack>
           </ScrollView>
+        </YStack>
+        {/* Bottom Buttons - Dash stays highlighted (node is part of the
+            dashboard) but dimmed, and is still pressable to go back */}
+        <YStack width="100%" justify="flex-end">
+          <YStack gap={10} paddingBottom={10}>
+            <XStack
+              borderWidth={2}
+              justify="space-evenly"
+              borderColor={"white"}
+              padding={10}
+              rounded={20}
+              width="100%"
+              gap={5}
+            >
+              <Button
+                size="$3"
+                theme="dark_blue"
+                opacity={0.6}
+                // Return to the existing dashboard instead of pushing a new
+                // one, which would re-run the BLE sync on mount
+                onPress={() => router.dismissTo("/dashboard")}
+              >
+                Dash
+              </Button>
+              <Separator
+                vertical
+                borderColor="gray"
+                rounded={3}
+                borderBottomWidth={3}
+                alignSelf="stretch"
+              />
+              <Button
+                size="$3"
+                theme="dark_gray"
+                onPress={() => router.push("/map")}
+              >
+                Map
+              </Button>
+              <Separator
+                vertical
+                borderColor="gray"
+                rounded={3}
+                borderBottomWidth={3}
+                alignSelf="stretch"
+              />
+              <Button
+                size="$3"
+                theme="dark_gray"
+                onPress={() => router.push("/config")}
+              >
+                Config
+              </Button>
+            </XStack>
+          </YStack>
         </YStack>
       </YStack>
     </YStack>

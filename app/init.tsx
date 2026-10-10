@@ -8,13 +8,20 @@ import {
   Input,
   ScrollView,
   Separator,
+  Spinner,
   Text,
   XStack,
   YStack,
 } from "tamagui";
 
 export default function Init() {
-  const { disconnect, writeConfig, isWritingConfig } = useBLE();
+  const {
+    disconnect,
+    writeConfig,
+    isWritingConfig,
+    waitForConfigResult,
+    isAwaitingConfigResult,
+  } = useBLE();
   const { loginState, logout } = useLogin();
 
   // One field per row in init.csv (Parameters,Value)
@@ -45,14 +52,23 @@ export default function Init() {
     sampleRate.trim().length > 0;
 
   //handle logout
-  const handleLogout = () => {
-    logout();
-    disconnect();
+  const handleLogout = async () => {
+    // Await so the saved login is gone before /login mounts and re-reads it
+    await logout();
+    await disconnect();
     router.push("/login");
   };
 
-  //handle confirm - write the config CSV to the ESP32, then go to the dashboard
+  // Result of the last attempt, shown above the buttons
+  const [verdict, setVerdict] = useState<'rejected' | 'timeout' | null>(null);
+  const isBusy = isWritingConfig || isAwaitingConfigResult;
+
+  //handle confirm - write the config CSV to the ESP32, then wait for the hub
+  //to answer with data.csv (accepted -> dashboard) or a blank init.csv
+  //(rejected -> stay here so the user can correct the info)
   const handleConfirm = async () => {
+    setVerdict(null);
+
     const success = await writeConfig({
       userId,
       userPassword,
@@ -62,11 +78,18 @@ export default function Init() {
       sampleRate,
     });
 
-    if (success) {
-      router.replace('/dashboard');
-    }
     // On failure, writeConfig already shows an Alert - stay on this
     // screen so the user can retry without re-entering everything.
+    if (!success) return;
+
+    const result = await waitForConfigResult();
+
+    if (result === 'accepted') {
+      router.replace('/dashboard');
+    } else if (result === 'rejected' || result === 'timeout') {
+      setVerdict(result);
+    }
+    // 'cancelled' - user logged out / disconnected, nothing to show
   };
 
   return (
@@ -131,6 +154,7 @@ export default function Init() {
                   placeholder="Enter Cloud Username"
                   value={userId}
                   onChangeText={setUserId}
+                  disabled={isBusy}
                   autoCapitalize="none"
                 />
               </YStack>
@@ -146,6 +170,7 @@ export default function Init() {
                   placeholder="Enter Cloud Password"
                   value={userPassword}
                   onChangeText={setUserPassword}
+                  disabled={isBusy}
                   secureTextEntry
                   autoCapitalize="none"
                 />
@@ -162,6 +187,7 @@ export default function Init() {
                   placeholder="Enter WiFi SSID"
                   value={wifiSsid}
                   onChangeText={setWifiSsid}
+                  disabled={isBusy}
                   autoCapitalize="none"
                 />
               </YStack>
@@ -177,6 +203,7 @@ export default function Init() {
                   placeholder="Enter WiFi Password"
                   value={wifiPass}
                   onChangeText={setWifiPass}
+                  disabled={isBusy}
                   secureTextEntry
                   autoCapitalize="none"
                 />
@@ -193,6 +220,7 @@ export default function Init() {
                   placeholder="Enter Sample Rate"
                   value={sampleRate}
                   onChangeText={setSampleRate}
+                  disabled={isBusy}
                   keyboardType="numeric"
                 />
               </YStack>
@@ -201,6 +229,27 @@ export default function Init() {
 
           {/* Bottom Buttons - fixed height, not flex, so it never competes with the ScrollView */}
           <YStack width="100%" gap={10} paddingBottom={10}>
+            {/* Status of the hub's answer to the last Confirm */}
+            {isAwaitingConfigResult && (
+              <XStack gap={10} items="center">
+                <Spinner size="small" color="white" />
+                <Text color="white" fontSize="$3">
+                  Waiting for hub to verify the information...
+                </Text>
+              </XStack>
+            )}
+            {verdict === 'rejected' && (
+              <Text color="red" fontSize="$3">
+                The hub could not use that information. Check your details and
+                press Confirm again.
+              </Text>
+            )}
+            {verdict === 'timeout' && (
+              <Text color="red" fontSize="$3">
+                The hub did not respond. Make sure it is powered on and in
+                range, then press Confirm again.
+              </Text>
+            )}
             <XStack
               borderWidth={2}
               justify="space-between"
@@ -219,10 +268,14 @@ export default function Init() {
                 size="$3"
                 theme="dark_green"
                 onPress={handleConfirm}
-                disabled={!allFieldsFilled || isWritingConfig}
+                disabled={!allFieldsFilled || isBusy}
                 disabledStyle={{ opacity: 0.5 }}
               >
-                {isWritingConfig ? 'Sending...' : 'Confirm'}
+                {isWritingConfig
+                  ? 'Sending...'
+                  : isAwaitingConfigResult
+                    ? 'Waiting...'
+                    : 'Confirm'}
               </Button>
             </XStack>
           </YStack>

@@ -42,7 +42,7 @@ useEffect(() => {
             animationDuration: 200,
             gestureEnabled: false,
             contentStyle: {
-              backgroundColor: "$gray12"
+              backgroundColor: "transparent" // let the $gray12 View above show through (tokens are not valid here)
             }
           }}
         >

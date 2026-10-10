@@ -1,6 +1,6 @@
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Platform } from 'react-native';
 import { useBLE } from '../context/BLEContext';
 import { Device } from 'react-native-ble-plx';
@@ -13,9 +13,19 @@ export default function HubConnect() {
       isScanning,
       connectedDevice,
       startScan,
+      clearScan,
       connectToDevice,
       disconnect
     } = useBLE();
+
+    // Clear the scan list whenever this screen loses focus (connect, logout,
+    // back...) so a stale list of devices isn't shown next time
+    useFocusEffect(
+      useCallback(() => {
+        return () => clearScan();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [])
+    );
 
     const {
       logout
@@ -30,9 +40,10 @@ export default function HubConnect() {
     };
 
     //handle logout
-    const handleLogout = () => {
-      logout();
-      disconnect();
+    const handleLogout = async () => {
+      // Await so the saved login is gone before /login mounts and re-reads it
+      await logout();
+      await disconnect();
       router.push("/login");
     }
 

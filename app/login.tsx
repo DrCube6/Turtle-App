@@ -14,7 +14,6 @@ export default function Login() {
     isLoggingIn,
     isLoggedIn,
     handleLogin,
-    logout,
   } = useLogin();
 
   //push upon login
@@ -23,7 +22,7 @@ export default function Login() {
       router.push("/hub_connect");
     }
 
-  }, [isLoggedIn, router]);
+  }, [isLoggedIn]);
 
   const loginFailed = statusText.toLowerCase().includes("failed") || statusText.toLowerCase().includes("error") || statusText.toLowerCase().includes("not found");
 
@@ -78,24 +77,27 @@ export default function Login() {
           </Text>
           <Input
             theme="dark"
-            outline={loginFailed ? "1px solid red" : "null"}
+            borderColor={loginFailed ? "red" : undefined}
             width={"100%"}
             size="$4"
             placeholder="Enter Username"
             value={username}
             onChangeText={setUsername}
+            autoCapitalize="none"
           />
           <Text fontSize="$3" color="white">
             Password
           </Text>
           <Input
             theme="dark"
-            outline={loginFailed ? "1px solid red" : "null"}
+            borderColor={loginFailed ? "red" : undefined}
             width={"100%"}
             size="$4"
             placeholder="Enter Password"
             value={password}
             onChangeText={setPassword}
+            secureTextEntry
+            autoCapitalize="none"
           />
         </YStack>
         {/* Bottom Buttons */}

@@ -4,6 +4,13 @@ import { createTamagui } from 'tamagui'
 
 export const config = createTamagui({
   ...defaultConfig,
+  settings: {
+    ...defaultConfig.settings,
+    // The v5 preset only types shorthands (bg, p, self...). The app uses
+    // longhands (backgroundColor, padding, alignSelf...) throughout, which
+    // Tamagui applies at runtime either way, so allow them in the types too.
+    onlyAllowShorthands: false,
+  },
   animations: createAnimations({
     quick: {
       type: 'spring',

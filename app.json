@@ -21,9 +21,6 @@
       },
       "package": "com.rocklinb.TurtleApp",
       "predictiveBackGestureEnabled": false,
-      "compileSdkVersion": 36,
-      "targetSdkVersion": 36,
-      "minSdkVersion": 24,
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",

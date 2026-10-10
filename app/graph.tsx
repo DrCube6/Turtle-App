@@ -41,7 +41,6 @@ export default function Graph() {
           {/* Scrollview content */}
           <ScrollView
             width="100%"
-            backgroundColor=""
             borderWidth={2}
             borderColor={"gray"}
             rounded={10}
