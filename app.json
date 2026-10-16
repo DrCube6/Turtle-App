@@ -72,6 +72,12 @@
           }
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Turtle App to use your location to place sensor nodes on the map."
+        }
+      ],
       "expo-secure-store",
       "expo-font",
       "expo-web-browser"

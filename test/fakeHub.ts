@@ -66,6 +66,13 @@ class FakeHub {
   controlLog: string[] = [];
   receivedConfigCsv: string | null = null;
   connected = false;
+  // Android-style flaky connects: fail this many connect() calls first
+  failConnects = 0;
+  // App listeners for the hub dropping the connection (device.onDisconnected)
+  disconnectListeners = new Set<Listener>();
+  connectAttempts = 0;
+  scanning = false;
+  connectedWhileScanning = false;
   // Config validation: how long the hub is busy after WRITE_DONE, what it
   // does meanwhile ('silent' = no answer, 'config' = still advertising the
   // old blank init.csv), and whether it accepts what was written
@@ -85,6 +92,11 @@ class FakeHub {
     this.controlLog = [];
     this.receivedConfigCsv = null;
     this.connected = false;
+    this.failConnects = 0;
+    this.disconnectListeners.clear();
+    this.connectAttempts = 0;
+    this.scanning = false;
+    this.connectedWhileScanning = false;
     this.validationMs = 0;
     this.busyMode = 'silent';
     this.acceptConfig = () => true;
@@ -139,7 +151,19 @@ class FakeHub {
     }, 10);
   }
 
+  // The hub drops the connection on its own (out of range, powered off)
+  dropConnection() {
+    this.connected = false;
+    this.listeners.clear();
+    for (const listener of [...this.disconnectListeners]) {
+      listener(null, { id: "AA:BB:CC:DD:EE:FF" });
+    }
+  }
+
   write(uuid: string, base64: string) {
+    if (!this.connected) {
+      throw new Error("Device AA:BB:CC:DD:EE:FF is not connected");
+    }
     const raw = Buffer.from(base64, 'base64');
 
     if (uuid === CONFIG_WRITE_UUID) {
@@ -184,6 +208,12 @@ export function makeDevice(): any {
     name: 'Turtle-MC',
     mtu: 23,
     connect: async () => {
+      hub.connectAttempts += 1;
+      if (hub.scanning) hub.connectedWhileScanning = true;
+      if (hub.failConnects > 0) {
+        hub.failConnects -= 1;
+        throw Object.assign(new Error(`Device ${device.id} was disconnected`), { errorCode: 201 });
+      }
       hub.connected = true;
       return device;
     },
@@ -208,6 +238,10 @@ export function makeDevice(): any {
       if (service !== SERVICE_UUID) throw new Error('FakeHub: bad service');
       hub.write(uuid, base64);
       return device;
+    },
+    onDisconnected: (listener: Listener) => {
+      hub.disconnectListeners.add(listener);
+      return { remove: () => hub.disconnectListeners.delete(listener) };
     },
     cancelConnection: async () => {
       hub.connected = false;

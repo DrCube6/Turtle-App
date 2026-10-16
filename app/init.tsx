@@ -1,5 +1,7 @@
 import { useBLE } from "@/context/BLEContext";
 import { useLogin } from "@/hooks/useLogin";
+import { useAppTheme } from "@/context/ThemeContext";
+import { useScreenPadding } from "@/hooks/useScreenPadding";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform } from "react-native";
@@ -15,6 +17,8 @@ import {
 } from "tamagui";
 
 export default function Init() {
+  const screenPadding = useScreenPadding();
+  const { colors } = useAppTheme();
   const {
     disconnect,
     writeConfig,
@@ -22,7 +26,7 @@ export default function Init() {
     waitForConfigResult,
     isAwaitingConfigResult,
   } = useBLE();
-  const { loginState, logout } = useLogin();
+  const { loginState } = useLogin();
 
   // One field per row in init.csv (Parameters,Value)
   const [userId, setUserId] = useState('');
@@ -51,17 +55,22 @@ export default function Init() {
     wifiPass.trim().length > 0 &&
     sampleRate.trim().length > 0;
 
-  //handle logout
-  const handleLogout = async () => {
-    // Await so the saved login is gone before /login mounts and re-reads it
-    await logout();
+  //handle disconnect - drop the main controller (this also cancels any wait
+  //for the hub's verdict) but stay logged in to the cloud; go back to the
+  //hub screen. Logging out only happens from the hub screen's Log Out.
+  const handleDisconnect = async () => {
     await disconnect();
-    router.push("/login");
+    router.dismissTo("/hub_connect");
   };
 
   // Result of the last attempt, shown above the buttons
   const [verdict, setVerdict] = useState<'rejected' | 'timeout' | null>(null);
   const isBusy = isWritingConfig || isAwaitingConfigResult;
+
+  // Hub rejected the config (couldn't get online) - outline the WiFi fields
+  // red until the next Confirm. Also set while focused, since Tamagui's
+  // focus style would otherwise replace the red border as soon as you tap in.
+  const wifiError = verdict === 'rejected';
 
   //handle confirm - write the config CSV to the ESP32, then wait for the hub
   //to answer with data.csv (accepted -> dashboard) or a blank init.csv
@@ -99,18 +108,19 @@ export default function Init() {
     >
       <YStack
         flex={1}
-        backgroundColor="$gray12"
+        backgroundColor={colors.background}
         items={"center"}
         padding="$4"
-        paddingTop={Platform.OS === "android" ? 30 : 60}
+        paddingTop={screenPadding.paddingTop}
+        paddingBottom={screenPadding.paddingBottom}
         gap="$4"
         width={"100%"}
       >
         <YStack
           flex={1}
-          backgroundColor="$gray12"
+          backgroundColor={colors.background}
           borderWidth={2}
-          borderColor={"white"}
+          borderColor={colors.border}
           items={"flex-start"}
           width="100%"
           gap="$4"
@@ -122,12 +132,12 @@ export default function Init() {
           {/* Top Header */}
           <YStack gap={10} width="100%">
             <XStack justify="space-between">
-              <Text color="white" fontSize="$5" fontWeight="bold">
+              <Text color={colors.text} fontSize="$5" fontWeight="bold">
                 Initial Setup
               </Text>
             </XStack>
             <Separator
-              borderColor="gray"
+              borderColor={colors.subtle}
               borderBottomWidth={3}
               alignSelf="stretch"
               rounded="$2"
@@ -144,11 +154,11 @@ export default function Init() {
           >
             <YStack gap="$4">
               <YStack gap="$2">
-                <Text fontSize="$3" color="white">
+                <Text fontSize="$3" color={colors.text}>
                   Cloud Username
                 </Text>
                 <Input
-                  theme="dark_gray"
+                  theme="gray"
                   width={"100%"}
                   size="$4"
                   placeholder="Enter Cloud Username"
@@ -160,28 +170,27 @@ export default function Init() {
               </YStack>
 
               <YStack gap="$2">
-                <Text fontSize="$3" color="white">
+                <Text fontSize="$3" color={colors.text}>
                   Cloud Password
                 </Text>
                 <Input
-                  theme="dark_gray"
+                  theme="gray"
                   width={"100%"}
                   size="$4"
                   placeholder="Enter Cloud Password"
                   value={userPassword}
                   onChangeText={setUserPassword}
                   disabled={isBusy}
-                  secureTextEntry
                   autoCapitalize="none"
                 />
               </YStack>
 
               <YStack gap="$2">
-                <Text fontSize="$3" color="white">
+                <Text fontSize="$3" color={colors.text}>
                   WIFI SSID
                 </Text>
                 <Input
-                  theme="dark_gray"
+                  theme="gray"
                   width={"100%"}
                   size="$4"
                   placeholder="Enter WiFi SSID"
@@ -189,32 +198,37 @@ export default function Init() {
                   onChangeText={setWifiSsid}
                   disabled={isBusy}
                   autoCapitalize="none"
+                  borderColor={wifiError ? "red" : undefined}
+                  borderWidth={wifiError ? 2 : undefined}
+                  focusStyle={wifiError ? { borderColor: "red", borderWidth: 2 } : undefined}
                 />
               </YStack>
 
               <YStack gap="$2">
-                <Text fontSize="$3" color="white">
+                <Text fontSize="$3" color={colors.text}>
                   WIFI Password
                 </Text>
                 <Input
-                  theme="dark_gray"
+                  theme="gray"
                   width={"100%"}
                   size="$4"
                   placeholder="Enter WiFi Password"
                   value={wifiPass}
                   onChangeText={setWifiPass}
                   disabled={isBusy}
-                  secureTextEntry
                   autoCapitalize="none"
+                  borderColor={wifiError ? "red" : undefined}
+                  borderWidth={wifiError ? 2 : undefined}
+                  focusStyle={wifiError ? { borderColor: "red", borderWidth: 2 } : undefined}
                 />
               </YStack>
 
               <YStack gap="$2">
-                <Text fontSize="$3" color="white">
+                <Text fontSize="$3" color={colors.text}>
                   Sample Rate (in minutes)
                 </Text>
                 <Input
-                  theme="dark_gray"
+                  theme="gray"
                   width={"100%"}
                   size="$4"
                   placeholder="Enter Sample Rate"
@@ -232,41 +246,40 @@ export default function Init() {
             {/* Status of the hub's answer to the last Confirm */}
             {isAwaitingConfigResult && (
               <XStack gap={10} items="center">
-                <Spinner size="small" color="white" />
-                <Text color="white" fontSize="$3">
+                <Spinner size="small" color={colors.text} />
+                <Text color={colors.text} fontSize="$3">
                   Waiting for hub to verify the information...
                 </Text>
               </XStack>
             )}
             {verdict === 'rejected' && (
               <Text color="red" fontSize="$3">
-                The hub could not use that information. Check your details and
-                press Confirm again.
+                The hub could not connect. Check your details and
+                try again.
               </Text>
             )}
             {verdict === 'timeout' && (
               <Text color="red" fontSize="$3">
-                The hub did not respond. Make sure it is powered on and in
-                range, then press Confirm again.
+                The hub did not respond.
               </Text>
             )}
             <XStack
               borderWidth={2}
               justify="space-between"
               items="center"
-              borderColor={"white"}
+              borderColor={colors.border}
               padding={10}
               rounded={20}
               width="100%"
               gap={10}
             >
-              <Button size="$3" theme="dark_gray" onPress={handleLogout}>
-                Logout
+              <Button size="$3" theme="gray" onPress={handleDisconnect}>
+                Disconnect
               </Button>
 
               <Button
                 size="$3"
-                theme="dark_green"
+                theme="green"
                 onPress={handleConfirm}
                 disabled={!allFieldsFilled || isBusy}
                 disabledStyle={{ opacity: 0.5 }}

@@ -60,8 +60,14 @@ export const CONFIG_RESULT_TIMING = {
   timeoutMs: 90000,
 };
 
+// Connecting: Android's first attempt often fails transiently, so retry
+const CONNECT_ATTEMPTS = 3;
+const CONNECT_RETRY_DELAY_MS = 600; // x attempt number
+const CONNECT_TIMEOUT_MS = 10000;
+
 // Outcome of one CSV transfer
-export type TransferResult = 'sensor' | 'config' | 'unrecognised' | 'failed';
+// 'disconnected' = the hub dropped the connection mid-transfer
+export type TransferResult = 'sensor' | 'config' | 'unrecognised' | 'failed' | 'disconnected';
 
 // Outcome of waiting for the hub's verdict on a config write
 export type ConfigResult = 'accepted' | 'rejected' | 'timeout' | 'cancelled';
@@ -72,10 +78,14 @@ type BLEContextType = {
   devices: Device[];
   connectedDevice: Device | null;
   isScanning: boolean;
+  isConnecting: boolean;
   receivedData: string;
   sensorData: SensorData[];
   isMonitoring: boolean;
   isTransferring: boolean;
+  transferProgress: { received: number; total: number };
+  lastSyncedAt: number | null;
+  connectionLost: boolean;
   isWritingConfig: boolean;
   isAwaitingConfigResult: boolean;
   csvType: CSVType;
@@ -110,6 +120,14 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
 
   const subscriptionRef = useRef<any>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const isConnectingRef = useRef(false);
+  // Listener for the hub dropping the connection on its own
+  const disconnectSubRef = useRef<{ remove: () => void } | null>(null);
+  // True after the hub disconnected unexpectedly, until the next scan/connect
+  const [connectionLost, setConnectionLost] = useState(false);
+  // When the last sensor-data sync finished (ms since epoch)
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
 
   const [sensorData, setSensorData] = useState<SensorData[]>([]);
 
@@ -123,6 +141,8 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
   const retryCountRef = useRef<number>(0);
   const dataSubRef = useRef<any>(null);
   const [isTransferring, setIsTransferring] = useState(false);
+  // Chunks received so far in the current transfer (total 0 = not known yet)
+  const [transferProgress, setTransferProgress] = useState({ received: 0, total: 0 });
   const [csvType, setCsvType] = useState<CSVType>(null);
   const [isWritingConfig, setIsWritingConfig] = useState(false);
   const [isAwaitingConfigResult, setIsAwaitingConfigResult] = useState(false);
@@ -187,6 +207,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    setConnectionLost(false);
     setIsScanning(true);
     setDevices([]);
 
@@ -248,32 +269,86 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
   // Connect
   // -------------------------
 
+  // One connection attempt: connect, bump the MTU, discover services
+  const connectOnce = async (device: Device): Promise<Device> => {
+
+    let connected = await device.connect({ timeout: CONNECT_TIMEOUT_MS });
+
+    // Request the largest MTU we can - falls back gracefully if it fails
+    // (iOS ignores this and negotiates its own value automatically)
+    try {
+      connected = await connected.requestMTU(517);
+      console.log('MTU negotiated:', connected.mtu);
+    } catch (mtuError) {
+      console.log('MTU negotiation failed, continuing with default:', mtuError);
+    }
+
+    await connected.discoverAllServicesAndCharacteristics();
+
+    return connected;
+  };
+
   const connectToDevice = async (
     device: Device
   ): Promise<Device | null> => {
 
+    // Ignore extra taps while an attempt (and its retries) is running
+    if (isConnectingRef.current) {
+      console.log('Already connecting, ignoring');
+      return null;
+    }
+
+    isConnectingRef.current = true;
+    setIsConnecting(true);
+
+    // Android often aborts a connection while a scan is still running, so
+    // stop it first. The device list stays as it is.
+    if (scanTimerRef.current) {
+      clearTimeout(scanTimerRef.current);
+      scanTimerRef.current = null;
+    }
+    bleManager.stopDeviceScan();
+    setIsScanning(false);
+
     try {
 
-      console.log('Connecting to:', device.id);
+      for (let attempt = 1; attempt <= CONNECT_ATTEMPTS; attempt++) {
 
-      let connected = await device.connect();
+        try {
 
-      // Request the largest MTU we can - falls back gracefully if it fails
-      // (iOS ignores this and negotiates its own value automatically)
-      try {
-        connected = await connected.requestMTU(517);
-        console.log('MTU negotiated:', connected.mtu);
-      } catch (mtuError) {
-        console.log('MTU negotiation failed, continuing with default:', mtuError);
+          console.log(`Connecting to: ${device.id} (attempt ${attempt}/${CONNECT_ATTEMPTS})`);
+
+          const connected = await connectOnce(device);
+
+          console.log('Connected:', connected.name);
+
+          // Find out if the hub drops the connection on its own later
+          disconnectSubRef.current = connected.onDisconnected(() => {
+            handleConnectionLost();
+          });
+
+          setConnectionLost(false);
+          setConnectedDevice(connected);
+
+          return connected;
+
+        } catch (error: any) {
+
+          // Android's first attempt often fails with a transient GATT error
+          // (GATT 133, reported as "Device ... was disconnected") - retry
+          console.log(`Connect attempt ${attempt} failed:`, error?.message ?? error);
+
+          if (attempt === CONNECT_ATTEMPTS) {
+            throw error;
+          }
+
+          // Clear any half-open connection before trying again
+          await bleManager.cancelDeviceConnection(device.id).catch(() => {});
+          await sleep(CONNECT_RETRY_DELAY_MS * attempt);
+        }
       }
 
-      await connected.discoverAllServicesAndCharacteristics();
-
-      console.log('Connected:', connected.name);
-
-      setConnectedDevice(connected);
-
-      return connected;
+      return null;
 
     } catch (error: any) {
 
@@ -281,10 +356,15 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
 
       Alert.alert(
         'Connection Failed',
-        error.message
+        `${error?.message ?? 'Could not connect'}\n\nTried ${CONNECT_ATTEMPTS} times. Make sure the hub is powered on and nearby, then try again.`
       );
 
       return null;
+
+    } finally {
+
+      isConnectingRef.current = false;
+      setIsConnecting(false);
     }
   };
 
@@ -397,6 +477,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
 
     if (type === 'sensor') {
       setSensorData(parseCSV(decoded));
+      setLastSyncedAt(Date.now());
     } else if (type === 'config') {
       // Config/initial CSV - no sensor rows to show, clear any stale data
       setSensorData([]);
@@ -526,6 +607,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
     // data that's about to be cleared below.
     clearWatchdog();
     chunksRef.current = new Map();
+    setTransferProgress({ received: 0, total: 0 });
     expectedTotalRef.current = 0;
     retryCountRef.current = 0;
     setIsTransferring(true);
@@ -564,6 +646,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
 
         expectedTotalRef.current = total;
         chunksRef.current.set(chunkIndex, payload);
+        setTransferProgress({ received: chunksRef.current.size, total });
 
         console.log(`Chunk ${chunkIndex + 1}/${total} (${payload.length} bytes)`);
 
@@ -738,28 +821,72 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
   // Disconnect
   // -------------------------
 
+  // Stop everything tied to the current connection: subscriptions, timers,
+  // any transfer or config wait in progress. `result` is what an awaited
+  // transfer (requestCSVAndWait) resolves with.
+  const teardownConnection = (result: TransferResult) => {
+    // Stop any wait for a config verdict (e.g. disconnecting from /init)
+    configWaitCancelledRef.current = true;
+
+    if (disconnectSubRef.current) {
+      disconnectSubRef.current.remove();
+      disconnectSubRef.current = null;
+    }
+
+    stopMonitoring();
+    clearWatchdog();
+    settleTransfer(result);
+
+    if (dataSubRef.current) {
+      dataSubRef.current.remove();
+      dataSubRef.current = null;
+    }
+  };
+
+  // Reset every piece of state tied to the connection/transfer so the next
+  // device we connect to starts from a clean slate - otherwise stale
+  // sensorData/csvType from a previous session could incorrectly drive the
+  // dashboard redirect logic.
+  const resetConnectionState = () => {
+    setConnectedDevice(null);
+    setReceivedData('');
+    setSensorData([]);
+    setCsvType(null);
+    setIsMonitoring(false);
+    setIsTransferring(false);
+    setIsWritingConfig(false);
+    setLastSyncedAt(null);
+
+    chunksRef.current = new Map();
+    setTransferProgress({ received: 0, total: 0 });
+    expectedTotalRef.current = 0;
+    retryCountRef.current = 0;
+  };
+
+  // The hub dropped the connection on its own (out of range, powered off,
+  // reset). Clean up and flag it - ConnectionLostRedirect sends the user
+  // back to the hub screen, which shows a message.
+  const handleConnectionLost = () => {
+    console.warn('Main controller disconnected unexpectedly');
+    teardownConnection('disconnected');
+    resetConnectionState();
+    setConnectionLost(true);
+  };
+
   const disconnect = async () => {
 
-    // Stop any wait for a config verdict (e.g. logging out from /init)
-    configWaitCancelledRef.current = true;
+    // A deliberate disconnect isn't a "lost connection"
+    setConnectionLost(false);
+
+    // Detach the drop listener first so our own cancelConnection isn't
+    // reported as the hub disconnecting
+    teardownConnection('failed');
 
     if (!connectedDevice) {
       return;
     }
 
     try {
-
-      // Tear down our own subscriptions/timers first so a stray
-      // notification can't fire callbacks against a device we're
-      // about to disconnect from.
-      stopMonitoring();
-      clearWatchdog();
-      settleTransfer('failed');
-
-      if (dataSubRef.current) {
-        dataSubRef.current.remove();
-        dataSubRef.current = null;
-      }
 
       // This is the actual BLE-layer disconnect - it tells the OS BLE
       // stack to drop the GATT connection to the peripheral.
@@ -771,21 +898,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
 
     } finally {
 
-      // Reset every piece of state tied to the connection/transfer so
-      // the next device we connect to starts from a clean slate -
-      // otherwise stale sensorData/csvType from a previous session
-      // could incorrectly drive the dashboard redirect logic.
-      setConnectedDevice(null);
-      setReceivedData('');
-      setSensorData([]);
-      setCsvType(null);
-      setIsMonitoring(false);
-      setIsTransferring(false);
-      setIsWritingConfig(false);
-
-      chunksRef.current = new Map();
-      expectedTotalRef.current = 0;
-      retryCountRef.current = 0;
+      resetConnectionState();
     }
   };
 
@@ -825,10 +938,14 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
         devices,
         connectedDevice,
         isScanning,
+        isConnecting,
         receivedData,
         sensorData,
         isMonitoring,
         isTransferring,
+        transferProgress,
+        lastSyncedAt,
+        connectionLost,
         isWritingConfig,
         isAwaitingConfigResult,
         csvType,

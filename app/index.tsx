@@ -1,9 +1,12 @@
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
-import { Platform } from "react-native";
 import { SizableText, Spinner, YStack } from "tamagui";
+import { useAppTheme } from "@/context/ThemeContext";
+import { useScreenPadding } from "@/hooks/useScreenPadding";
 
 export default function Index() {
+  const screenPadding = useScreenPadding();
+  const { colors } = useAppTheme();
   //route to habitat selection
   const router = useRouter();
 
@@ -18,18 +21,19 @@ export default function Index() {
   return (
     <YStack
       flex={1}
-      backgroundColor="$gray12"
+      backgroundColor={colors.background}
       items={"center"}
       padding="$4"
-      paddingTop={Platform.OS === "android" ? 30 : 60}
+      paddingTop={screenPadding.paddingTop}
+      paddingBottom={screenPadding.paddingBottom}
       gap="$4"
       width={"100%"}
     >
       <YStack
         flex={1}
-        backgroundColor="$gray12"
+        backgroundColor={colors.background}
         borderWidth={3}
-        borderColor={"white"}
+        borderColor={colors.border}
         items={"center"}
         justify={"center"}
         width="100%"
@@ -38,8 +42,8 @@ export default function Index() {
         paddingTop={30}
         rounded={40}
       >
-        <Spinner size="large" color="white"></Spinner>
-        <SizableText mt="$4" size="$6" color="white">
+        <Spinner size="large" color={colors.text}></Spinner>
+        <SizableText mt="$4" size="$6" color={colors.text}>
           Welcome...
         </SizableText>
       </YStack>

@@ -1,26 +1,18 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { Dimensions } from "react-native";
-import { LineChart } from "react-native-chart-kit";
 import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
 
+import { BatteryIcon } from "@/components/BatteryIcon";
+import { HistoryChart } from "@/components/HistoryChart";
 import { useBLE } from "@/context/BLEContext";
-
-const screenWidth = Dimensions.get("window").width;
-// Account for the outer YStack's padding ($4 + $5) on both sides
-const CHART_WIDTH = screenWidth - 90;
-
-const chartConfig = {
-  backgroundGradientFrom: "#1a1a1a",
-  backgroundGradientTo: "#1a1a1a",
-  decimalPlaces: 1,
-  color: (opacity = 1) => `rgba(234, 179, 8, ${opacity})`, // matches dark_yellow theme
-  labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-  propsForDots: {
-    r: "3",
-  },
-};
+import { useOpenScreen } from "@/hooks/useOpenScreen";
+import { useAppTheme } from "@/context/ThemeContext";
+import { useScreenPadding } from "@/hooks/useScreenPadding";
 
 export default function Node() {
+  const screenPadding = useScreenPadding();
+  const { colors } = useAppTheme();
+  // Main screens open like tabs - no duplicate copies piling up
+  const openScreen = useOpenScreen();
 
   //get params
   const { node, battery, temperature, humidity } = useLocalSearchParams();
@@ -44,32 +36,26 @@ export default function Node() {
 
   const hasHistory = nodeHistory.length > 0;
 
-  // Label every 4th point (plus the first and last) so the x-axis doesn't
-  // get crowded with up to 24 overlapping labels
-  const chartLabels = nodeHistory.map((row, i) => {
-    const isEdge = i === 0 || i === nodeHistory.length - 1;
-    return (isEdge || i % 4 === 0) ? `-${row.hr}h` : '';
-  });
-
+  const hoursSeries = nodeHistory.map(row => row.hr);
   const temperatureSeries = nodeHistory.map(row => row.temperature);
   const humiditySeries = nodeHistory.map(row => row.humidity);
 
   return (
     <YStack
       flex={1}
-      backgroundColor="$gray12"
+      backgroundColor={colors.background}
       items={"center"}
       padding="$4"
-      paddingTop={30}
-      paddingBottom={10}
+      paddingTop={screenPadding.paddingTop}
+      paddingBottom={screenPadding.paddingBottom}
       gap="$4"
       width={"100%"}
     >
       <YStack
         flex={1}
-        backgroundColor="$gray12"
+        backgroundColor={colors.background}
         borderWidth={2}
-        borderColor={"white"}
+        borderColor={colors.border}
         items={"flex-start"}
         width="100%"
         gap="$4"
@@ -82,15 +68,18 @@ export default function Node() {
           {/* Top Header */}
           <YStack gap={10} width="100%">
             <XStack justify="space-between" width="100%">
-              <Text color="white" fontSize="$5" fontWeight="bold">
+              <Text color={colors.text} fontSize="$5" fontWeight="bold">
                 Node {node}
               </Text>
-              <Text color="white" fontSize="$5" fontWeight="bold">
-                {battery}%
-              </Text>
+              <XStack gap={6} items="center">
+                <Text color={colors.text} fontSize="$5" fontWeight="bold">
+                  {battery}%
+                </Text>
+                <BatteryIcon percent={Number(battery)} size={24} />
+              </XStack>
             </XStack>
             <Separator
-              borderColor="gray"
+              borderColor={colors.subtle}
               borderBottomWidth={3}
               alignSelf="stretch"
               rounded="$2"
@@ -104,15 +93,15 @@ export default function Node() {
               {/* Latest values */}
               <YStack
                 borderWidth={2}
-                borderColor={"gray"}
+                borderColor={colors.subtle}
                 padding={15}
                 rounded={10}
               >
                 <XStack justify="space-between">
-                  <Text color="white" fontSize="$4">
+                  <Text color={colors.text} fontSize="$4">
                     Temperature
                   </Text>
-                  <Text color="white" fontSize="$4">
+                  <Text color={colors.text} fontSize="$4">
                     {temperature}F
                   </Text>
                 </XStack>
@@ -120,15 +109,15 @@ export default function Node() {
 
               <YStack
                 borderWidth={2}
-                borderColor={"gray"}
+                borderColor={colors.subtle}
                 padding={15}
                 rounded={10}
               >
                 <XStack justify="space-between">
-                  <Text color="white" fontSize="$4">
+                  <Text color={colors.text} fontSize="$4">
                     Humidity
                   </Text>
-                  <Text color="white" fontSize="$4">
+                  <Text color={colors.text} fontSize="$4">
                     {humidity}%
                   </Text>
                 </XStack>
@@ -136,23 +125,18 @@ export default function Node() {
 
               {/* Temperature graph */}
               <YStack gap="$2">
-                <Text color="white" fontSize="$4" fontWeight="bold">
+                <Text color={colors.text} fontSize="$4" fontWeight="bold">
                   Temperature (last 24h)
                 </Text>
                 {hasHistory ? (
-                  <LineChart
-                    data={{
-                      labels: chartLabels,
-                      datasets: [{ data: temperatureSeries }],
-                    }}
-                    width={CHART_WIDTH}
-                    height={180}
-                    chartConfig={chartConfig}
-                    bezier
-                    style={{ borderRadius: 10 }}
+                  <HistoryChart
+                    testID="temperature-chart"
+                    values={temperatureSeries}
+                    hours={hoursSeries}
+                    unit="F"
                   />
                 ) : (
-                  <Text color="gray" fontSize="$3">
+                  <Text color={colors.muted} fontSize="$3">
                     No history data yet
                   </Text>
                 )}
@@ -160,23 +144,18 @@ export default function Node() {
 
               {/* Humidity graph */}
               <YStack gap="$2">
-                <Text color="white" fontSize="$4" fontWeight="bold">
+                <Text color={colors.text} fontSize="$4" fontWeight="bold">
                   Humidity (last 24h)
                 </Text>
                 {hasHistory ? (
-                  <LineChart
-                    data={{
-                      labels: chartLabels,
-                      datasets: [{ data: humiditySeries }],
-                    }}
-                    width={CHART_WIDTH}
-                    height={180}
-                    chartConfig={chartConfig}
-                    bezier
-                    style={{ borderRadius: 10 }}
+                  <HistoryChart
+                    testID="humidity-chart"
+                    values={humiditySeries}
+                    hours={hoursSeries}
+                    unit="%"
                   />
                 ) : (
-                  <Text color="gray" fontSize="$3">
+                  <Text color={colors.muted} fontSize="$3">
                     No history data yet
                   </Text>
                 )}
@@ -192,7 +171,7 @@ export default function Node() {
             <XStack
               borderWidth={2}
               justify="space-evenly"
-              borderColor={"white"}
+              borderColor={colors.border}
               padding={10}
               rounded={20}
               width="100%"
@@ -200,7 +179,7 @@ export default function Node() {
             >
               <Button
                 size="$3"
-                theme="dark_blue"
+                theme="blue"
                 opacity={0.6}
                 // Return to the existing dashboard instead of pushing a new
                 // one, which would re-run the BLE sync on mount
@@ -210,29 +189,29 @@ export default function Node() {
               </Button>
               <Separator
                 vertical
-                borderColor="gray"
+                borderColor={colors.subtle}
                 rounded={3}
                 borderBottomWidth={3}
                 alignSelf="stretch"
               />
               <Button
                 size="$3"
-                theme="dark_gray"
-                onPress={() => router.push("/map")}
+                theme="gray"
+                onPress={() => openScreen("/map")}
               >
                 Map
               </Button>
               <Separator
                 vertical
-                borderColor="gray"
+                borderColor={colors.subtle}
                 rounded={3}
                 borderBottomWidth={3}
                 alignSelf="stretch"
               />
               <Button
                 size="$3"
-                theme="dark_gray"
-                onPress={() => router.push("/config")}
+                theme="gray"
+                onPress={() => openScreen("/config")}
               >
                 Config
               </Button>

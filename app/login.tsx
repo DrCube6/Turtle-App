@@ -1,10 +1,13 @@
 import { router } from "expo-router";
 import { useEffect } from "react";
-import { Platform } from "react-native";
 import { useLogin } from "../hooks/useLogin";
 import { Button, Input, Separator, Text, XStack, YStack } from "tamagui";
+import { useAppTheme } from "@/context/ThemeContext";
+import { useScreenPadding } from "@/hooks/useScreenPadding";
 
 export default function Login() {
+  const screenPadding = useScreenPadding();
+  const { colors } = useAppTheme();
 
   //login const
   const {
@@ -32,18 +35,19 @@ export default function Login() {
   return (
     <YStack
       flex={1}
-      backgroundColor="$gray12"
+      backgroundColor={colors.background}
       items={"center"}
       padding="$4"
-      paddingTop={Platform.OS === "android" ? 30 : 60}
+      paddingTop={screenPadding.paddingTop}
+      paddingBottom={screenPadding.paddingBottom}
       gap="$4"
       width={"100%"}
     >
       <YStack
         flex={1}
-        backgroundColor="$gray12"
+        backgroundColor={colors.background}
         borderWidth={2}
-        borderColor={"white"}
+        borderColor={colors.border}
         items={"flex-start"}
         width="100%"
         gap="$4"
@@ -60,11 +64,11 @@ export default function Login() {
           gap="$4"
           //padding="$5"
         >
-          <Text color="white" fontSize="$5" fontWeight="bold">
+          <Text color={colors.text} fontSize="$5" fontWeight="bold">
             Habitat Login
           </Text>
           <Separator
-            borderColor="gray"
+            borderColor={colors.subtle}
             borderBottomWidth={3}
             alignSelf="stretch"
             rounded="$2"
@@ -72,11 +76,11 @@ export default function Login() {
         </YStack>
         {/*form feilds*/}
         <YStack gap="$2" width="100%">
-          <Text fontSize="$3" color="white">
+          <Text fontSize="$3" color={colors.text}>
             Username
           </Text>
           <Input
-            theme="dark"
+            theme="gray"
             borderColor={loginFailed ? "red" : undefined}
             width={"100%"}
             size="$4"
@@ -85,11 +89,11 @@ export default function Login() {
             onChangeText={setUsername}
             autoCapitalize="none"
           />
-          <Text fontSize="$3" color="white">
+          <Text fontSize="$3" color={colors.text}>
             Password
           </Text>
           <Input
-            theme="dark"
+            theme="gray"
             borderColor={loginFailed ? "red" : undefined}
             width={"100%"}
             size="$4"
@@ -115,11 +119,11 @@ export default function Login() {
             padding={10}
             rounded={20}
             borderWidth={2}
-            borderColor={"white"}
+            borderColor={colors.border}
             width="100%"
             gap={10}
           >
-          <Text fontSize="$3" color="white">
+          <Text fontSize="$3" color={colors.text}>
             {statusText}
           </Text>
           <XStack
@@ -127,14 +131,14 @@ export default function Login() {
             >
             <Separator
               vertical
-              borderColor="gray"
+              borderColor={colors.subtle}
               rounded={3}
               borderBottomWidth={3}
               alignSelf="stretch"
             />
             <Button
               size="$3"
-              theme="dark_green"
+              theme="green"
               disabled={!ifFormValid || isLoggingIn}
               disabledStyle={{ opacity: 0.5 }}
               onPress={() => {

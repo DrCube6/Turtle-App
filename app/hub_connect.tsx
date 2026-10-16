@@ -1,16 +1,21 @@
 import { router, useFocusEffect } from "expo-router";
 import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
-import React, { useCallback } from 'react';
-import { Platform } from 'react-native';
+import { useAppTheme } from "@/context/ThemeContext";
+import { useScreenPadding } from "@/hooks/useScreenPadding";
+import React, { useCallback, useState } from 'react';
 import { useBLE } from '../context/BLEContext';
 import { Device } from 'react-native-ble-plx';
 import { useLogin } from '../hooks/useLogin';
 
 export default function HubConnect() {
+  const screenPadding = useScreenPadding();
+  const { colors } = useAppTheme();
 
     const {
       devices,
       isScanning,
+      isConnecting,
+      connectionLost,
       connectedDevice,
       startScan,
       clearScan,
@@ -31,8 +36,13 @@ export default function HubConnect() {
       logout
     } = useLogin();
     
+    // Which device is being connected to, to label its button
+    const [connectingId, setConnectingId] = useState<string | null>(null);
+
     const handleConnect = async (device: Device) => {
+      setConnectingId(device.id);
       const connected = await connectToDevice(device);
+      setConnectingId(null);
       if (connected) {
         // Navigate to monitor screen after successful connection
         router.push('/dashboard');
@@ -51,18 +61,19 @@ export default function HubConnect() {
   return (
     <YStack
       flex={1}
-      backgroundColor="$gray12"
+      backgroundColor={colors.background}
       items={"center"}
       padding="$4"
-      paddingTop={Platform.OS === "android" ? 30 : 60}
+      paddingTop={screenPadding.paddingTop}
+      paddingBottom={screenPadding.paddingBottom}
       gap="$4"
       width={"100%"}
     >
       <YStack
         flex={1}
-        backgroundColor="$gray12"
+        backgroundColor={colors.background}
         borderWidth={2}
-        borderColor={"white"}
+        borderColor={colors.border}
         items={"flex-start"}
         width="100%"
         gap="$4"
@@ -74,21 +85,21 @@ export default function HubConnect() {
          {/* Top Header */}
         <YStack gap={10} width="100%">
           <XStack justify="space-between">
-            <Text color="white" fontSize="$5" fontWeight="bold">
+            <Text color={colors.text} fontSize="$5" fontWeight="bold">
               Connect to Hub
             </Text>
             <Button
               size="$2"
-              theme="dark_yellow"
+              theme="yellow"
               onPress={startScan}
-              disabled={isScanning}
+              disabled={isScanning || isConnecting}
               disabledStyle={{ opacity: 0.3 }}
             >
               Scan
             </Button>
           </XStack>
           <Separator
-            borderColor="gray"
+            borderColor={colors.subtle}
             borderBottomWidth={3}
             alignSelf="stretch"
             rounded="$2"
@@ -101,16 +112,19 @@ export default function HubConnect() {
                   <Button
                     key={device.id}
                     onPress={() => handleConnect(device)}
-                    disabled={!!connectedDevice}
-                    theme="dark_green"
+                    disabled={!!connectedDevice || isConnecting}
+                    disabledStyle={{ opacity: 0.6 }}
+                    theme="green"
                     size="$3"
                     alignSelf="center"
                   >
-                    {device.name || device.id}
+                    {connectingId === device.id
+                      ? `Connecting to ${device.name || device.id}...`
+                      : device.name || device.id}
                   </Button>
                 ))
               ) : (
-                <Text color="gray" fontSize="$3" alignSelf="center">
+                <Text color={colors.muted} fontSize="$3" alignSelf="center">
                   No Bluetooth devices found
                 </Text>
               )}
@@ -120,10 +134,18 @@ export default function HubConnect() {
         {/* Bottom Buttons */}
         <YStack width="100%" justify="flex-end">
           <YStack gap={10} paddingBottom={10}>
+            {/* The hub dropped the connection on its own - cleared on the
+                next Scan or connect */}
+            {connectionLost && (
+              <Text color="red" fontSize="$3">
+                The main controller was disconnected. Scan and connect to
+                reconnect.
+              </Text>
+            )}
             <XStack
               borderWidth={2}
               justify="flex-end"
-              borderColor={"white"}
+              borderColor={colors.border}
               padding={10}
               rounded={20}
               width="100%"
@@ -131,14 +153,14 @@ export default function HubConnect() {
             >
               <Separator
                 vertical
-                borderColor="gray"
+                borderColor={colors.subtle}
                 rounded={3}
                 borderBottomWidth={3}
                 alignSelf="stretch"
               />
               <Button
                 size="$3"
-                theme="dark_gray"
+                theme="gray"
                 onPress={handleLogout}
               >
                 Log Out

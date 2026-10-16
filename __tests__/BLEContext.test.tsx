@@ -303,3 +303,148 @@ describe('waiting for the hub to verify a config write', () => {
     expect(verdict).toBe('cancelled');
   });
 });
+
+describe('connecting (Android first attempts often fail)', () => {
+  it('retries and connects when the first two attempts fail with "was disconnected"', async () => {
+    hub.failConnects = 2;
+    const { result } = renderHook(() => useBLE(), { wrapper });
+
+    let device: any;
+    await act(async () => {
+      device = await result.current.connectToDevice(makeDevice());
+    });
+
+    expect(device).not.toBeNull();
+    expect(hub.connectAttempts).toBe(3);
+    expect(result.current.connectedDevice).not.toBeNull();
+    expect(result.current.isConnecting).toBe(false);
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it('gives up after 3 failed attempts with one clear alert', async () => {
+    hub.failConnects = 99;
+    const { result } = renderHook(() => useBLE(), { wrapper });
+
+    let device: any = 'unset';
+    await act(async () => {
+      device = await result.current.connectToDevice(makeDevice());
+    });
+
+    expect(device).toBeNull();
+    expect(hub.connectAttempts).toBe(3);
+    expect(result.current.connectedDevice).toBeNull();
+    expect(result.current.isConnecting).toBe(false);
+    expect(Alert.alert).toHaveBeenCalledTimes(1);
+    expect(Alert.alert).toHaveBeenCalledWith('Connection Failed', expect.stringContaining('Tried 3 times'));
+  });
+
+  it('stops a running scan before connecting', async () => {
+    const { result } = renderHook(() => useBLE(), { wrapper });
+    await act(async () => {
+      await result.current.startScan();
+    });
+    expect(hub.scanning).toBe(true);
+
+    await act(async () => {
+      await result.current.connectToDevice(makeDevice());
+    });
+
+    expect(hub.connectedWhileScanning).toBe(false);
+    expect(result.current.isScanning).toBe(false);
+  });
+
+  it('ignores a second tap while already connecting', async () => {
+    hub.failConnects = 1;
+    const { result } = renderHook(() => useBLE(), { wrapper });
+
+    let second: any = 'unset';
+    await act(async () => {
+      const first = result.current.connectToDevice(makeDevice());
+      second = await result.current.connectToDevice(makeDevice());
+      await first;
+    });
+
+    expect(second).toBeNull();
+    expect(hub.connectAttempts).toBe(2); // 1 failure + 1 success, no extra
+  });
+});
+
+it('reports chunk progress during a transfer', async () => {
+  hub.dropOnce = new Set([20]); // holds the transfer open until the retry
+  const { result } = await connectedBLE();
+
+  await act(async () => {
+    await result.current.requestCSV();
+  });
+
+  const total = hub.chunks.length;
+  await waitFor(() => expect(result.current.transferProgress).toEqual({ received: total - 1, total }));
+  expect(result.current.isTransferring).toBe(true);
+
+  await waitFor(() => expect(result.current.transferProgress).toEqual({ received: total, total }), { timeout: 5000 });
+  await waitFor(() => expect(result.current.isTransferring).toBe(false));
+});
+
+describe('the hub dropping the connection', () => {
+  it('flags connectionLost and clears the connection and data', async () => {
+    const { result } = await connectedBLE();
+    await act(async () => {
+      await result.current.requestCSV();
+    });
+    await waitFor(() => expect(result.current.sensorData.length).toBeGreaterThan(0));
+    expect(result.current.lastSyncedAt).not.toBeNull();
+
+    act(() => hub.dropConnection());
+
+    expect(result.current.connectionLost).toBe(true);
+    expect(result.current.connectedDevice).toBeNull();
+    expect(result.current.sensorData).toEqual([]);
+    expect(result.current.lastSyncedAt).toBeNull();
+  });
+
+  it('a transfer in progress resolves as "disconnected" without a failure alert', async () => {
+    hub.mode = 'silent';
+    const { result } = await connectedBLE();
+
+    let transfer: Promise<string> | undefined;
+    act(() => {
+      transfer = result.current.requestCSVAndWait({ quiet: false });
+    });
+    act(() => hub.dropConnection());
+
+    await expect(transfer).resolves.toBe('disconnected');
+    expect(result.current.isTransferring).toBe(false);
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it('a deliberate disconnect is not reported as lost', async () => {
+    const { result } = await connectedBLE();
+    await act(async () => {
+      await result.current.disconnect();
+    });
+
+    expect(result.current.connectionLost).toBe(false);
+    expect(hub.disconnectListeners.size).toBe(0);
+  });
+
+  it('the next scan clears the lost flag', async () => {
+    const { result } = await connectedBLE();
+    act(() => hub.dropConnection());
+    expect(result.current.connectionLost).toBe(true);
+
+    await act(async () => {
+      await result.current.startScan();
+    });
+    expect(result.current.connectionLost).toBe(false);
+  });
+
+  it('records when the last sync finished', async () => {
+    const { result } = await connectedBLE();
+    const before = Date.now();
+    await act(async () => {
+      await result.current.requestCSV();
+    });
+    await waitFor(() => expect(result.current.lastSyncedAt).not.toBeNull());
+    expect(result.current.lastSyncedAt!).toBeGreaterThanOrEqual(before);
+  });
+});

@@ -1,5 +1,5 @@
 import { Stack } from "expo-router";
-import { TamaguiProvider, View } from "tamagui";
+import { TamaguiProvider, Theme, View } from "tamagui";
 import { config } from "../tamagui.config";
 
 import "@/global.css";
@@ -7,7 +7,9 @@ import * as NavigationBar from "expo-navigation-bar";
 import { Platform } from "react-native";
 import { useEffect } from "react";
 
+import { ConnectionLostRedirect } from "@/components/ConnectionLostRedirect";
 import { BLEProvider } from "@/context/BLEContext";
+import { AppThemeProvider, useAppTheme } from "@/context/ThemeContext";
 
 export default function RootLayout() {
   // hide nav bar on android
@@ -32,9 +34,25 @@ useEffect(() => {
   }, []);
 
   return (
-    <BLEProvider>
-      <TamaguiProvider config={config} defaultTheme="light">
-        <View flex={1} backgroundColor="$gray12">
+    <AppThemeProvider>
+      <BLEProvider>
+        <TamaguiProvider config={config} defaultTheme="dark">
+          <ThemedRoot />
+        </TamaguiProvider>
+      </BLEProvider>
+    </AppThemeProvider>
+  );
+}
+
+// Applies the chosen light/dark theme: Tamagui's theme (so buttons pick
+// light_yellow / dark_yellow etc.) and the screen background
+function ThemedRoot() {
+  const { mode, colors } = useAppTheme();
+
+  return (
+    <Theme name={mode}>
+      <View flex={1} backgroundColor={colors.background}>
+        <ConnectionLostRedirect />
         <Stack
           screenOptions={{
             headerShown: false,
@@ -42,7 +60,8 @@ useEffect(() => {
             animationDuration: 200,
             gestureEnabled: false,
             contentStyle: {
-              backgroundColor: "transparent" // let the $gray12 View above show through (tokens are not valid here)
+              // let the themed View above show through
+              backgroundColor: "transparent"
             }
           }}
         >
@@ -55,10 +74,10 @@ useEffect(() => {
           <Stack.Screen name="init" options={{ headerShown: false }} />
           <Stack.Screen name="node" options={{ headerShown: false }} />
           <Stack.Screen name="graph" options={{ headerShown: false }} />
+          <Stack.Screen name="pick-location" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" options={{ headerShown: false }} />
         </Stack>
-        </View>
-      </TamaguiProvider>
-    </BLEProvider>
+      </View>
+    </Theme>
   );
 }

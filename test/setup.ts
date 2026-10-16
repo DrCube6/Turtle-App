@@ -23,6 +23,11 @@ jest.mock('expo-secure-store', () => {
 // read back exactly which data points the node screen plotted.
 jest.mock('react-native-chart-kit', () => require('./mockLineChart'));
 
+// In-memory AsyncStorage (node placements)
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
 jest.mock('expo-navigation-bar', () => ({
   setVisibilityAsync: jest.fn(async () => {}),
   setBehaviorAsync: jest.fn(async () => {}),
