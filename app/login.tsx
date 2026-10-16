@@ -1,13 +1,26 @@
 import { router } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { ScrollView, StyleSheet, Switch } from "react-native";
 import { useLogin } from "../hooks/useLogin";
 import { Button, Input, Separator, Text, XStack, YStack } from "tamagui";
 import { useAppTheme } from "@/context/ThemeContext";
 import { useScreenPadding } from "@/hooks/useScreenPadding";
+import { Logo, LOGO_ASPECT } from "@/components/Logo";
+
+// Gap kept above and below the logo
+const LOGO_GAP = 8;
 
 export default function Login() {
   const screenPadding = useScreenPadding();
-  const { colors } = useAppTheme();
+  const { colors, mode, setMode } = useAppTheme();
+
+  // Space between the password field and the preferences, measured with the
+  // keyboard closed. The logo fills it (keeping its shape) minus a small gap.
+  const [logoSpace, setLogoSpace] = useState({ width: 0, height: 0 });
+  const logoWidth = Math.max(
+    0,
+    Math.min(logoSpace.width, (logoSpace.height - 2 * LOGO_GAP) * LOGO_ASPECT)
+  );
 
   //login const
   const {
@@ -48,7 +61,6 @@ export default function Login() {
         backgroundColor={colors.background}
         borderWidth={2}
         borderColor={colors.border}
-        items={"flex-start"}
         width="100%"
         gap="$4"
         padding="$5"
@@ -56,16 +68,10 @@ export default function Login() {
         paddingBottom={10}
         rounded={40}
       >
-        <YStack
-          backgroundColor="transparent"
-          //flex={1}
-          width="100%"
-          items="center"
-          gap="$4"
-          //padding="$5"
-        >
+        {/* Fixed header - stays put while the middle scrolls */}
+        <YStack width="100%" items="center" gap="$4">
           <Text color={colors.text} fontSize="$5" fontWeight="bold">
-            Habitat Login
+            Welcome!
           </Text>
           <Separator
             borderColor={colors.subtle}
@@ -74,61 +80,105 @@ export default function Login() {
             rounded="$2"
           />
         </YStack>
-        {/*form feilds*/}
-        <YStack gap="$2" width="100%">
-          <Text fontSize="$3" color={colors.text}>
-            Username
-          </Text>
-          <Input
-            theme="gray"
-            borderColor={loginFailed ? "red" : undefined}
-            width={"100%"}
-            size="$4"
-            placeholder="Enter Username"
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-          />
-          <Text fontSize="$3" color={colors.text}>
-            Password
-          </Text>
-          <Input
-            theme="gray"
-            borderColor={loginFailed ? "red" : undefined}
-            width={"100%"}
-            size="$4"
-            placeholder="Enter Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoCapitalize="none"
-          />
-        </YStack>
-        {/* Bottom Buttons */}
-        <YStack
-          width="100%"
-          backgroundColor="transparent"
-          justify="flex-end"
-          paddingBottom={10}
-          flex={1}
-          gap={10}
+
+        {/* Only the middle scrolls: fields, logo, preferences. When the
+            keyboard opens the frame shrinks, the login bar below rides up
+            with it, and this part scrolls instead of being squashed. */}
+        <ScrollView
+          testID="login-scroll"
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
         >
-          <XStack
-            justify="space-between"
-            alignItems="center"
-            padding={10}
-            rounded={20}
-            borderWidth={2}
-            borderColor={colors.border}
-            width="100%"
-            gap={10}
+          {/*form fields*/}
+          <YStack gap="$2" width="100%">
+            <Text fontSize="$3" color={colors.text}>
+              Username
+            </Text>
+            <Input
+              theme="gray"
+              borderColor={loginFailed ? "red" : undefined}
+              width={"100%"}
+              size="$4"
+              placeholder="Enter Username"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+            />
+            <Text fontSize="$3" color={colors.text}>
+              Password
+            </Text>
+            <Input
+              theme="gray"
+              borderColor={loginFailed ? "red" : undefined}
+              width={"100%"}
+              size="$4"
+              placeholder="Enter Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+            />
+          </YStack>
+
+          {/* Logo between the password field and the preferences, as large
+              as the space allows with a small gap above and below. Part of
+              the layout, so it can never sit on top of the fields. */}
+          <YStack
+            testID="login-logo-space"
+            flex={1}
+            items="center"
+            justify="center"
+            onLayout={(e) => {
+              const { width, height } = e.nativeEvent.layout;
+              // Keep the largest space seen (keyboard closed), so opening
+              // the keyboard scrolls rather than shrinking the logo
+              setLogoSpace((prev) =>
+                height > prev.height ? { width, height } : prev
+              );
+            }}
           >
+            {logoWidth > 0 && (
+              <Logo width={logoWidth} opacity={mode === "dark" ? 0.12 : 0.18} />
+            )}
+          </YStack>
+
+          {/* Preferences */}
+          <YStack gap={10} width="100%">
+            <XStack justify="space-between" items="center" paddingHorizontal={4}>
+              <Text fontSize="$4" color={colors.text}>
+                Dark Theme
+              </Text>
+              {/* Same app-wide, saved setting as Config's switch */}
+              <Switch
+                testID="login-dark-theme-switch"
+                value={mode === "dark"}
+                onValueChange={(on) => setMode(on ? "dark" : "light")}
+                trackColor={{ false: "#555", true: "rgb(37, 99, 235)" }}
+                thumbColor="white"
+              />
+            </XStack>
+          </YStack>
+        </ScrollView>
+
+        {/* Fixed login bar - outside the scroll, so it stays just above the
+            keyboard */}
+        <XStack
+          testID="login-bar"
+          justify="space-between"
+          alignItems="center"
+          padding={10}
+          rounded={20}
+          borderWidth={2}
+          borderColor={colors.border}
+          width="100%"
+          gap={10}
+          marginBottom={10}
+        >
           <Text fontSize="$3" color={colors.text}>
             {statusText}
           </Text>
-          <XStack
-            gap={10}
-            >
+          <XStack gap={10}>
             <Separator
               vertical
               borderColor={colors.subtle}
@@ -147,10 +197,21 @@ export default function Login() {
             >
               {isLoggingIn ? "Logging in..." : "Login"}
             </Button>
-            </XStack>
           </XStack>
-        </YStack>
+        </XStack>
       </YStack>
     </YStack>
   );
 }
+
+const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+  },
+  // Fills the space when there's room (fields top, logo middle,
+  // preferences bottom) and scrolls when there isn't
+  scrollContent: {
+    flexGrow: 1,
+    gap: 16,
+  },
+});

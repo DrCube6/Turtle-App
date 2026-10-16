@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Dimensions, StyleSheet, View } from "react-native";
 import { LineChart } from "react-native-chart-kit";
 import { Text, YStack } from "tamagui";
@@ -44,9 +44,12 @@ type Props = {
   unit: string;
   testID?: string;
   height?: number;
+  // Called once, when the chart has been laid out and drawn
+  onDrawn?: () => void;
 };
 
-export function HistoryChart({ values, hours, unit, testID, height = 180 }: Props) {
+export function HistoryChart({ values, hours, unit, testID, height = 180, onDrawn }: Props) {
+  const reportedDrawn = useRef(false);
   const { mode, colors } = useAppTheme();
   const chartConfig = chartConfigFor(mode, colors.surface);
   const [measuredWidth, setMeasuredWidth] = useState(0);
@@ -78,7 +81,14 @@ export function HistoryChart({ values, hours, unit, testID, height = 180 }: Prop
     <View
       testID={testID}
       style={[styles.frame, { height }]}
-      onLayout={(e) => setMeasuredWidth(e.nativeEvent.layout.width)}
+      onLayout={(e) => {
+        setMeasuredWidth(e.nativeEvent.layout.width);
+        // First layout = the chart has been drawn
+        if (!reportedDrawn.current) {
+          reportedDrawn.current = true;
+          onDrawn?.();
+        }
+      }}
     >
       <LineChart
         data={{ labels, datasets: [{ data: values }] }}

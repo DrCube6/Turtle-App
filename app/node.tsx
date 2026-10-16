@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
+import { useCallback, useEffect, useState } from "react";
+import { Button, ScrollView, Separator, Spinner, Text, XStack, YStack } from "tamagui";
 
 import { BatteryIcon } from "@/components/BatteryIcon";
 import { HistoryChart } from "@/components/HistoryChart";
@@ -7,6 +8,10 @@ import { useBLE } from "@/context/BLEContext";
 import { useOpenScreen } from "@/hooks/useOpenScreen";
 import { useAppTheme } from "@/context/ThemeContext";
 import { useScreenPadding } from "@/hooks/useScreenPadding";
+
+// Show the screen anyway after this long, even if a graph never reports.
+// Mutable so tests can shorten it.
+export const NODE_LOADING = { fallbackMs: 3000 };
 
 export default function Node() {
   const screenPadding = useScreenPadding();
@@ -40,6 +45,37 @@ export default function Node() {
   const temperatureSeries = nodeHistory.map(row => row.temperature);
   const humiditySeries = nodeHistory.map(row => row.humidity);
 
+  // Loading stages: nothing mounted -> content built hidden -> revealed.
+  // Restarts when the screen is reused for a different node.
+  const [mounted, setMounted] = useState(false);
+  const [chartsDrawn, setChartsDrawn] = useState(0);
+  const [timedOut, setTimedOut] = useState(false);
+  const chartsNeeded = hasHistory ? 2 : 0;
+  const ready = mounted && (chartsDrawn >= chartsNeeded || timedOut);
+
+  const markChartDrawn = useCallback(() => setChartsDrawn((n) => n + 1), []);
+
+  useEffect(() => {
+    setMounted(false);
+    setChartsDrawn(0);
+    setTimedOut(false);
+
+    // Let the spinner screen paint first (two frames), then build the
+    // heavy content
+    let frame2 = 0;
+    const frame1 = requestAnimationFrame(() => {
+      frame2 = requestAnimationFrame(() => setMounted(true));
+    });
+    // Never spin forever if a graph doesn't report back
+    const fallback = setTimeout(() => setTimedOut(true), NODE_LOADING.fallbackMs);
+
+    return () => {
+      cancelAnimationFrame(frame1);
+      cancelAnimationFrame(frame2);
+      clearTimeout(fallback);
+    };
+  }, [node]);
+
   return (
     <YStack
       flex={1}
@@ -64,7 +100,19 @@ export default function Node() {
         paddingBottom={10}
         rounded={40}
       >
-        <YStack flex={1} width="100%" items="center" gap="$4">
+        {/* Content area: a spinner shows straight away (cheap, so the
+            screen appears instantly); the content and graphs are built
+            hidden behind it and revealed once both graphs have drawn */}
+        <YStack flex={1} width="100%">
+          {mounted && (
+        <YStack
+          testID="node-content"
+          flex={1}
+          width="100%"
+          items="center"
+          gap="$4"
+          opacity={ready ? 1 : 0}
+        >
           {/* Top Header */}
           <YStack gap={10} width="100%">
             <XStack justify="space-between" width="100%">
@@ -134,6 +182,7 @@ export default function Node() {
                     values={temperatureSeries}
                     hours={hoursSeries}
                     unit="F"
+                    onDrawn={markChartDrawn}
                   />
                 ) : (
                   <Text color={colors.muted} fontSize="$3">
@@ -153,6 +202,7 @@ export default function Node() {
                     values={humiditySeries}
                     hours={hoursSeries}
                     unit="%"
+                    onDrawn={markChartDrawn}
                   />
                 ) : (
                   <Text color={colors.muted} fontSize="$3">
@@ -164,9 +214,19 @@ export default function Node() {
             </YStack>
           </ScrollView>
         </YStack>
+          )}
+        </YStack>
         {/* Bottom Buttons - Dash stays highlighted (node is part of the
-            dashboard) but dimmed, and is still pressable to go back */}
-        <YStack width="100%" justify="flex-end">
+            dashboard) but dimmed, and is still pressable to go back.
+            Hidden (but still taking its space, so nothing shifts) while the
+            node loads - the loading screen covers the whole frame. */}
+        <YStack
+          testID="node-nav"
+          width="100%"
+          justify="flex-end"
+          opacity={ready ? 1 : 0}
+          pointerEvents={ready ? "auto" : "none"}
+        >
           <YStack gap={10} paddingBottom={10}>
             <XStack
               borderWidth={2}
@@ -218,6 +278,26 @@ export default function Node() {
             </XStack>
           </YStack>
         </YStack>
+
+        {/* Loading screen over the whole frame, bottom bar included */}
+        {!ready && (
+          <YStack
+            testID="node-loading"
+            position="absolute"
+            top={0}
+            left={0}
+            right={0}
+            bottom={0}
+            items="center"
+            justify="center"
+            gap="$3"
+          >
+            <Spinner size="large" color={colors.text} />
+            <Text color={colors.text} fontSize="$4">
+              Fetching Node {node}
+            </Text>
+          </YStack>
+        )}
       </YStack>
     </YStack>
   );

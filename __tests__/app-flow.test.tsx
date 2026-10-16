@@ -28,6 +28,19 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
+// The node view hides its bottom bar behind "Fetching Node X" until both
+// graphs have drawn. jest has no layout, so report them drawn ourselves.
+async function finishNodeLoading() {
+  await screen.findAllByTestId('node-content');
+  for (const id of ['temperature-chart', 'humidity-chart']) {
+    const chart = screen.queryAllByTestId(id).at(-1);
+    if (chart) {
+      fireEvent(chart, 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 280, height: 180 } } });
+    }
+  }
+  await waitFor(() => expect(screen.queryByTestId('node-loading')).toBeNull());
+}
+
 // Press a button in the most recent Alert.alert popup (handlers may be async)
 async function answerAlert(buttonText: string) {
   const [, , buttons] = (Alert.alert as jest.Mock).mock.calls.at(-1);
@@ -40,7 +53,7 @@ async function loginAndConnect() {
   const app = renderRouter(APP_DIR, { initialUrl: '/' });
 
   // Splash -> login
-  await screen.findByText('Habitat Login', {}, { timeout: 3000 });
+  await screen.findByText('Welcome!', {}, { timeout: 3000 });
   fireEvent.changeText(screen.getByPlaceholderText('Enter Username'), 'dev');
   fireEvent.changeText(screen.getByPlaceholderText('Enter Password'), '123');
   fireEvent.press(screen.getByText('Login'));
@@ -97,6 +110,7 @@ it('node view has the bottom nav: Dash returns to the dashboard without re-synci
 
   fireEvent.press(screen.getByText('Node 3'));
   await screen.findByText('Temperature (last 24h)');
+  await finishNodeLoading(); // graphs drawn -> bottom bar usable
   expect(app.getPathname()).toBe('/node');
 
   fireEvent.press(screen.getAllByText('Dash').at(-1)!);
@@ -107,6 +121,7 @@ it('node view has the bottom nav: Dash returns to the dashboard without re-synci
 
   fireEvent.press(screen.getByText('Node 3'));
   await screen.findByText('Temperature (last 24h)');
+  await finishNodeLoading(); // graphs drawn -> bottom bar usable
   fireEvent.press(screen.getAllByText('Map').at(-1)!);
   await waitFor(() => expect(app.getPathname()).toBe('/map'));
 
@@ -117,6 +132,7 @@ it('node view has the bottom nav: Dash returns to the dashboard without re-synci
   expect(hub.controlLog.filter(c => c === 'START').length).toBe(startsBeforeMapDash);
   fireEvent.press((await screen.findAllByText('Node 3', {}, { timeout: 5000 })).at(-1)!);
   await waitFor(() => expect(app.getPathname()).toBe('/node'));
+  await finishNodeLoading(); // graphs drawn -> bottom bar usable
   fireEvent.press(screen.getAllByText('Config').at(-1)!);
   await waitFor(() => expect(app.getPathname()).toBe('/config'));
 });
@@ -431,7 +447,7 @@ describe('no data from the hub on connect', () => {
 it('flaky first connects: shows Connecting... and still reaches the dashboard', async () => {
   hub.failConnects = 2;
   const app = renderRouter(APP_DIR, { initialUrl: '/' });
-  await screen.findByText('Habitat Login', {}, { timeout: 3000 });
+  await screen.findByText('Welcome!', {}, { timeout: 3000 });
   fireEvent.changeText(screen.getByPlaceholderText('Enter Username'), 'dev');
   fireEvent.changeText(screen.getByPlaceholderText('Enter Password'), '123');
   fireEvent.press(screen.getByText('Login'));
@@ -962,6 +978,7 @@ describe('switching screens never stacks duplicate maps (memory leak)', () => {
       fireEvent.press(screen.getAllByTestId('node-marker-5').at(-1)!, { stopPropagation: () => {}, nativeEvent: {} });
       fireEvent.press(screen.getAllByTestId('info-temperature').at(-1)!);
       await waitFor(() => expect(app.getPathname()).toBe('/node'));
+      await finishNodeLoading(); // graphs drawn -> bottom bar usable
       fireEvent.press(screen.getAllByText('Map').at(-1)!);
       await waitFor(() => expect(app.getPathname()).toBe('/map'));
     }
@@ -976,6 +993,7 @@ describe('switching screens never stacks duplicate maps (memory leak)', () => {
 
     fireEvent.press(screen.getByText('Node 5'));
     await waitFor(() => expect(app.getPathname()).toBe('/node'));
+    await finishNodeLoading(); // graphs drawn -> bottom bar usable
     fireEvent.press(screen.getAllByText('Map').at(-1)!);
     await waitFor(() => expect(app.getPathname()).toBe('/map'));
     fireEvent.press(screen.getAllByText('Config').at(-1)!);
@@ -1296,7 +1314,169 @@ describe('light / dark theme', () => {
   it('the saved theme is applied when the app starts', async () => {
     await AsyncStorage.setItem('turtle_theme', 'light');
     renderRouter(APP_DIR, { initialUrl: '/' });
-    await screen.findByText('Habitat Login', {}, { timeout: 3000 });
-    await waitFor(() => expect(textColor('Habitat Login')).toBe(PALETTES.light.text));
+    await screen.findByText('Welcome!', {}, { timeout: 3000 });
+    await waitFor(() => expect(textColor('Welcome!')).toBe(PALETTES.light.text));
+  });
+});
+
+describe('login screen', () => {
+  const AsyncStorage = require('@react-native-async-storage/async-storage');
+  const { StyleSheet: SS } = require('react-native');
+  const { PALETTES } = require('@/context/ThemeContext');
+
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+  });
+
+  const openLogin = async () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    await screen.findByText('Welcome!', {}, { timeout: 3000 });
+  };
+
+  // jest has no layout: report the space between the fields and preferences
+  const sizeLogoSpace = (width: number, height: number) =>
+    fireEvent(screen.getByTestId('login-logo-space'), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width, height } },
+    });
+
+  it('says Welcome! with the logo behind the form', async () => {
+    await openLogin();
+    expect(screen.queryByText('Habitat Login')).toBeNull();
+    sizeLogoSpace(300, 260);
+    expect(screen.getByTestId('logo')).toBeTruthy();
+    // The form still works through the watermark
+    fireEvent.changeText(screen.getByPlaceholderText('Enter Username'), 'dev');
+    fireEvent.changeText(screen.getByPlaceholderText('Enter Password'), '123');
+    fireEvent.press(screen.getByText('Login'));
+    await screen.findByText('Connect to Hub');
+  });
+
+  it('Dark Theme switch on the login screen changes and saves the app theme', async () => {
+    await openLogin();
+    const toggle = screen.getByTestId('login-dark-theme-switch');
+    expect(toggle.props.value).toBe(true);
+
+    fireEvent(toggle, 'valueChange', false);
+    await waitFor(() =>
+      expect(SS.flatten(screen.getByText('Welcome!').props.style).color).toBe(PALETTES.light.text)
+    );
+    expect(await AsyncStorage.getItem('turtle_theme')).toBe('light');
+  });
+
+  it('only the fields, logo and preferences scroll; Welcome! and the login bar stay fixed', async () => {
+    await openLogin();
+    const scroll = screen.getByTestId('login-scroll');
+    expect(scroll.props.keyboardShouldPersistTaps).toBe('handled');
+
+    // Inside the scroll view
+    expect(within(scroll).getByPlaceholderText('Enter Username')).toBeTruthy();
+    expect(within(scroll).getByPlaceholderText('Enter Password')).toBeTruthy();
+    sizeLogoSpace(300, 260);
+    expect(within(scroll).getByTestId('logo')).toBeTruthy();
+    expect(within(scroll).getByText('Dark Theme')).toBeTruthy();
+
+    // Outside it: the header stays at the top, the login bar rides up with
+    // the keyboard
+    expect(within(scroll).queryByText('Welcome!')).toBeNull();
+    expect(within(scroll).queryByText('Login')).toBeNull();
+    expect(within(screen.getByTestId('login-bar')).getByText('Login')).toBeTruthy();
+  });
+
+  it('logo fills the space between the fields and the preferences, faded, with a small gap', async () => {
+    await openLogin();
+    const { LOGO_ASPECT } = require('@/components/Logo');
+    const logoSize = () => {
+      const svg = screen.getByTestId('logo');
+      // react-native-svg moves opacity into the style
+      const opacity = svg.props.opacity ?? SS.flatten(svg.props.style)?.opacity;
+      return { width: svg.props.width, height: svg.props.height, opacity };
+    };
+
+    // Tall space: limited by height, 8px gap above and below
+    sizeLogoSpace(300, 260);
+    expect(logoSize().height).toBeCloseTo(260 - 16, 5);
+    expect(logoSize().width).toBeCloseTo((260 - 16) * LOGO_ASPECT, 5);
+    expect(logoSize().opacity).toBe(0.12); // dark theme
+
+    // Opening the keyboard shrinks the space - the logo keeps its size
+    // (the middle scrolls instead)
+    sizeLogoSpace(300, 120);
+    expect(logoSize().height).toBeCloseTo(244, 5);
+  });
+
+  it('logo is limited by width when the space is wide and short', async () => {
+    await openLogin();
+    const { LOGO_ASPECT } = require('@/components/Logo');
+    sizeLogoSpace(200, 400);
+    const svg = screen.getByTestId('logo');
+    expect(svg.props.width).toBe(200);
+    expect(svg.props.height).toBeCloseTo(200 / LOGO_ASPECT, 5);
+  });
+
+  it('has no language buttons for now', async () => {
+    await openLogin();
+    expect(screen.queryByText('English')).toBeNull();
+    expect(screen.queryByText('Spanish')).toBeNull();
+    expect(screen.getByText('Dark Theme')).toBeTruthy();
+  });
+});
+
+describe('node view: Fetching Node X while the graphs draw', () => {
+  const openNode5 = async () => {
+    const app = await loginAndConnect();
+    await screen.findByText('Node 12', {}, { timeout: 5000 });
+    fireEvent.press(screen.getByText('Node 5'));
+    await waitFor(() => expect(app.getPathname()).toBe('/node'));
+    return app;
+  };
+  const drawChart = (testID: string) =>
+    fireEvent(screen.getByTestId(testID), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 280, height: 180 } },
+    });
+  const contentOpacity = () => {
+    const { StyleSheet: SS } = require('react-native');
+    return SS.flatten(screen.getByTestId('node-content').props.style)?.opacity;
+  };
+
+  it('opens straight to a spinner, then reveals the screen once both graphs have drawn', async () => {
+    await openNode5();
+    expect(screen.getByTestId('node-loading')).toBeTruthy();
+    expect(screen.getByText('Fetching Node 5')).toBeTruthy();
+    // The loading screen covers the bottom bar too: hidden and untappable
+    const navStyle = () => {
+      const { StyleSheet: SS } = require('react-native');
+      const nav = screen.getByTestId('node-nav');
+      return { opacity: SS.flatten(nav.props.style)?.opacity, pointerEvents: nav.props.pointerEvents ?? SS.flatten(nav.props.style)?.pointerEvents };
+    };
+    expect(navStyle()).toEqual({ opacity: 0, pointerEvents: 'none' });
+
+    // Content is built behind the spinner, hidden
+    await screen.findByTestId('node-content');
+    expect(contentOpacity()).toBe(0);
+
+    drawChart('temperature-chart');
+    expect(screen.getByText('Fetching Node 5')).toBeTruthy(); // still one to go
+    drawChart('humidity-chart');
+
+    await waitFor(() => expect(screen.queryByTestId('node-loading')).toBeNull());
+    expect(contentOpacity()).toBe(1);
+    expect(navStyle()).toEqual({ opacity: 1, pointerEvents: 'auto' });
+  });
+
+  it('never spins forever: shows the screen after the fallback even if a graph does not report', async () => {
+    // Short fallback: the animated spinner makes fake-timer runs of 3 s stall
+    const { NODE_LOADING } = require('@/app/node');
+    const original = NODE_LOADING.fallbackMs;
+    NODE_LOADING.fallbackMs = 200;
+    try {
+    await openNode5();
+    await screen.findByTestId('node-content');
+    expect(screen.getByText('Fetching Node 5')).toBeTruthy();
+
+    await waitFor(() => expect(screen.queryByTestId('node-loading')).toBeNull(), { timeout: 5000 });
+    expect(contentOpacity()).toBe(1);
+    } finally {
+      NODE_LOADING.fallbackMs = original;
+    }
   });
 });
