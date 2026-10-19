@@ -18,7 +18,8 @@ export const CONFIG_WRITE_UUID = '99887766-9988-9988-9988-998877665544';
 
 export const NODE_COUNT = 12;
 export const HOURS = 24;
-const CHUNK_PAYLOAD = 180;
+// Same as the firmware: 176 data bytes + 4-byte header fits an iOS notification
+const CHUNK_PAYLOAD = 176;
 
 // Deterministic readings so tests can assert exact values.
 // hr 1 = most recent, hr 24 = oldest.
@@ -68,6 +69,16 @@ class FakeHub {
   connected = false;
   // Android-style flaky connects: fail this many connect() calls first
   failConnects = 0;
+  // Size of every config-write packet the app sent (header + payload)
+  configPacketSizes: number[] = [];
+  // Phone Bluetooth adapter state (PoweredOn, PoweredOff, Unknown...)
+  bluetoothState = "PoweredOn";
+  stateListeners = new Set<(state: string) => void>();
+
+  setBluetoothState(state: string) {
+    this.bluetoothState = state;
+    this.stateListeners.forEach((listener) => listener(state));
+  }
   // App listeners for the hub dropping the connection (device.onDisconnected)
   disconnectListeners = new Set<Listener>();
   connectAttempts = 0;
@@ -93,6 +104,9 @@ class FakeHub {
     this.receivedConfigCsv = null;
     this.connected = false;
     this.failConnects = 0;
+    this.configPacketSizes = [];
+    this.bluetoothState = "PoweredOn";
+    this.stateListeners.clear();
     this.disconnectListeners.clear();
     this.connectAttempts = 0;
     this.scanning = false;
@@ -167,6 +181,7 @@ class FakeHub {
     const raw = Buffer.from(base64, 'base64');
 
     if (uuid === CONFIG_WRITE_UUID) {
+      this.configPacketSizes.push(raw.length);
       this.configChunks.set(raw.readUInt16LE(0), raw.subarray(4));
       return;
     }

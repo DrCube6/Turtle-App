@@ -448,3 +448,66 @@ describe('the hub dropping the connection', () => {
     expect(result.current.lastSyncedAt!).toBeGreaterThanOrEqual(before);
   });
 });
+
+describe('iOS readiness', () => {
+  it('scan waits for Bluetooth to finish starting up (iOS reports Unknown at first)', async () => {
+    hub.bluetoothState = 'Unknown';
+    const { result } = renderHook(() => useBLE(), { wrapper });
+
+    let scanning!: Promise<void>;
+    act(() => {
+      scanning = result.current.startScan();
+    });
+    // Bluetooth comes up a moment later
+    await act(async () => {
+      hub.setBluetoothState('PoweredOn');
+      await scanning;
+    });
+
+    expect(result.current.isScanning).toBe(true);
+    await waitFor(() => expect(result.current.devices).toHaveLength(1));
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['PoweredOff', 'Bluetooth Is Off'],
+    ['Unauthorized', 'Bluetooth Not Allowed'],
+  ])('Bluetooth %s: explains instead of scanning', async (state, title) => {
+    hub.bluetoothState = state;
+    const { result } = renderHook(() => useBLE(), { wrapper });
+
+    await act(async () => {
+      await result.current.startScan();
+    });
+
+    expect(result.current.isScanning).toBe(false);
+    expect(hub.scanning).toBe(false);
+    expect(Alert.alert).toHaveBeenCalledWith(title, expect.any(String));
+  });
+
+  // iPhones usually allow 182 bytes per BLE message (MTU 185 - 3)
+  const IOS_MAX_PACKET = 182;
+
+  it('config writes fit an iPhone BLE packet', async () => {
+    hub.mode = 'config';
+    const { result } = await connectedBLE();
+    await act(async () => {
+      await result.current.writeConfig({
+        userId: 'a-fairly-long-cloud-user-name@university.example.edu',
+        userPassword: 'x'.repeat(60),
+        wifiSsid: 'University Trails Guest Network 5GHz',
+        wifiPass: 'y'.repeat(60),
+        authKey: 'SiNGzYAVbOHB2rWemXy6dUL7gpZJasjt',
+        sampleRate: '30',
+      });
+    });
+
+    expect(hub.configPacketSizes.length).toBeGreaterThan(1); // really chunked
+    expect(Math.max(...hub.configPacketSizes)).toBeLessThanOrEqual(IOS_MAX_PACKET);
+  });
+
+  it('the hub notifications (firmware chunk size) fit an iPhone BLE packet', () => {
+    const sizes = hub.chunks.map((c) => c.length);
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(IOS_MAX_PACKET);
+  });
+});

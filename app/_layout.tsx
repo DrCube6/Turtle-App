@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { TamaguiProvider, Theme, View } from "tamagui";
 import { config } from "../tamagui.config";
 
@@ -52,6 +53,11 @@ function ThemedRoot() {
   return (
     <Theme name={mode}>
       <View flex={1} backgroundColor={colors.background}>
+        {/* iOS draws the app under the status bar, so its text must contrast
+            with the theme. Android keeps its own opaque status bar. */}
+        {Platform.OS === "ios" && (
+          <StatusBar style={mode === "dark" ? "light" : "dark"} />
+        )}
         <ConnectionLostRedirect />
         <Stack
           screenOptions={{

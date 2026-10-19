@@ -9,6 +9,7 @@ import React, {
 import {
   BleManager,
   BleErrorCode,
+  State,
   Device,
 } from 'react-native-ble-plx';
 
@@ -40,12 +41,22 @@ const CONTROL_UUID = '11223344-1122-1122-1122-112233445566';
 // being misread as a command string.
 const CONFIG_WRITE_UUID = '99887766-9988-9988-9988-998877665544';
 
-const bleManager = new BleManager();
+// Created on first use, not at import: on iOS creating it shows the
+// Bluetooth permission prompt, which should appear when the user taps Scan
+// rather than at app launch. Calls that only stop things use the instance
+// if it exists, so they never trigger the prompt.
+let bleManagerInstance: BleManager | null = null;
+const getBleManager = () => (bleManagerInstance ??= new BleManager());
+
+// How long to wait for Bluetooth to report "on" (iOS starts as Unknown)
+const BLUETOOTH_READY_TIMEOUT_MS = 3000;
 
 const MAX_RETRY_ROUNDS = 5;
 const WATCHDOG_MS = 1500;
-// Same payload size used for the read path, kept conservative for MTU safety
-const WRITE_CHUNK_PAYLOAD = 180;
+// Data bytes per config-write chunk (plus a 4-byte header = 180 bytes).
+// iPhones usually allow 182 bytes per BLE message (MTU 185 - 3), so 180
+// total fits on iOS as well as Android. Matches the firmware's read chunks.
+const WRITE_CHUNK_PAYLOAD = 176;
 
 // After the app writes init.csv, the hub validates it and then advertises
 // either data.csv (accepted) or a blank init.csv (rejected). These control how
@@ -195,6 +206,30 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
   // Scan
   // -------------------------
 
+  // Bluetooth adapter state once it settles: PoweredOn, PoweredOff,
+  // Unauthorized... Unknown/Resetting are transient, so wait them out.
+  const waitForBluetooth = async (): Promise<State> => {
+    const manager = getBleManager();
+    const current = await manager.state();
+    if (current !== State.Unknown && current !== State.Resetting) {
+      return current;
+    }
+
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        sub.remove();
+        resolve(State.Unknown);
+      }, BLUETOOTH_READY_TIMEOUT_MS);
+
+      const sub = manager.onStateChange((state) => {
+        if (state === State.Unknown || state === State.Resetting) return;
+        clearTimeout(timer);
+        sub.remove();
+        resolve(state);
+      }, true);
+    });
+  };
+
   const startScan = async () => {
 
     const hasPermission = await requestPermissions();
@@ -207,11 +242,24 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // iOS reports Bluetooth as "Unknown" for a moment after start-up, and
+    // a scan started then fails silently - wait for it to be on
+    const bluetooth = await waitForBluetooth();
+    if (bluetooth !== State.PoweredOn) {
+      Alert.alert(
+        bluetooth === State.Unauthorized ? 'Bluetooth Not Allowed' : 'Bluetooth Is Off',
+        bluetooth === State.Unauthorized
+          ? 'Allow Turtle App to use Bluetooth in Settings, then scan again.'
+          : 'Turn on Bluetooth, then scan again.'
+      );
+      return;
+    }
+
     setConnectionLost(false);
     setIsScanning(true);
     setDevices([]);
 
-    bleManager.startDeviceScan(
+    getBleManager().startDeviceScan(
       null,
       { allowDuplicates: false },
       (error, device) => {
@@ -245,7 +293,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
     scanTimerRef.current = setTimeout(() => {
 
       scanTimerRef.current = null;
-      bleManager.stopDeviceScan();
+      bleManagerInstance?.stopDeviceScan();
       setIsScanning(false);
 
     }, 12000);
@@ -260,7 +308,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
       scanTimerRef.current = null;
     }
 
-    bleManager.stopDeviceScan();
+    bleManagerInstance?.stopDeviceScan();
     setIsScanning(false);
     setDevices([]);
   };
@@ -307,7 +355,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(scanTimerRef.current);
       scanTimerRef.current = null;
     }
-    bleManager.stopDeviceScan();
+    bleManagerInstance?.stopDeviceScan();
     setIsScanning(false);
 
     try {
@@ -343,7 +391,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
           }
 
           // Clear any half-open connection before trying again
-          await bleManager.cancelDeviceConnection(device.id).catch(() => {});
+          await getBleManager().cancelDeviceConnection(device.id).catch(() => {});
           await sleep(CONNECT_RETRY_DELAY_MS * attempt);
         }
       }
@@ -910,7 +958,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
 
-      bleManager.stopDeviceScan();
+      bleManagerInstance?.stopDeviceScan();
 
       if (subscriptionRef.current) {
         subscriptionRef.current.remove();

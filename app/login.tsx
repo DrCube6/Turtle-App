@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Switch } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch } from "react-native";
 import { useLogin } from "../hooks/useLogin";
 import { Button, Input, Separator, Text, XStack, YStack } from "tamagui";
 import { useAppTheme } from "@/context/ThemeContext";
@@ -46,6 +46,12 @@ export default function Login() {
   const ifFormValid = username.trim() !== "" && password.trim() !== "";
 
   return (
+    // iOS doesn't resize the screen for the keyboard the way Android does;
+    // padding here lifts the login bar above the keyboard on iOS too
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
     <YStack
       flex={1}
       backgroundColor={colors.background}
@@ -201,6 +207,7 @@ export default function Login() {
         </XStack>
       </YStack>
     </YStack>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -6,7 +6,26 @@ export const BleErrorCode = {
   OperationCancelled: 2,
 };
 
+export const State = {
+  Unknown: 'Unknown',
+  Resetting: 'Resetting',
+  Unsupported: 'Unsupported',
+  Unauthorized: 'Unauthorized',
+  PoweredOff: 'PoweredOff',
+  PoweredOn: 'PoweredOn',
+} as const;
+
 export class BleManager {
+  async state() {
+    return hub.bluetoothState;
+  }
+
+  onStateChange(listener: (state: string) => void, emitCurrentState?: boolean) {
+    hub.stateListeners.add(listener);
+    if (emitCurrentState) listener(hub.bluetoothState);
+    return { remove: () => hub.stateListeners.delete(listener) };
+  }
+
   startDeviceScan(
     _uuids: string[] | null,
     _options: object,
