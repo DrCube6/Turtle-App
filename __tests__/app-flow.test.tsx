@@ -11,7 +11,7 @@ import {
 import path from 'path';
 import { Alert, StyleSheet } from 'react-native';
 
-import { hub, reading } from '@/test/fakeHub';
+import { hub, makeSensorCsv, reading, timestampFor } from '@/test/fakeHub';
 
 const APP_DIR = path.resolve(__dirname, '../app');
 
@@ -263,6 +263,37 @@ it('Initial Setup > Disconnect (even while waiting for the hub) returns to Conne
   }
 });
 
+it('Initial Setup hides both passwords; the eye button shows and hides each one', async () => {
+  hub.mode = 'config';
+  await loginAndConnect();
+  await screen.findByText('Initial Setup', {}, { timeout: 5000 });
+
+  const secure = (placeholder: string) =>
+    screen.getByPlaceholderText(placeholder).props.secureTextEntry;
+  expect(secure('Enter Cloud Password')).toBe(true);
+  expect(secure('Enter WiFi Password')).toBe(true);
+  // Not passwords - stay readable
+  expect(secure('Enter Cloud Username')).toBeFalsy();
+  expect(secure('Enter WiFi SSID')).toBeFalsy();
+
+  // Icon shows the state: crossed-out eye while hidden, open eye when shown
+  const icon = (toggle: string) =>
+    screen.getByTestId(toggle).findAll((el: any) => typeof el.props.name === 'string')[0].props.name;
+  expect(icon('init-user-password-toggle')).toBe('eye-off-outline');
+  expect(icon('init-wifi-password-toggle')).toBe('eye-off-outline');
+
+  fireEvent.press(screen.getByTestId('init-wifi-password-toggle'));
+  expect(secure('Enter WiFi Password')).toBe(false);
+  expect(icon('init-wifi-password-toggle')).toBe('eye-outline');
+  expect(icon('init-user-password-toggle')).toBe('eye-off-outline');
+  expect(secure('Enter Cloud Password')).toBe(true); // each toggles on its own
+
+  fireEvent.press(screen.getByTestId('init-wifi-password-toggle'));
+  fireEvent.press(screen.getByTestId('init-user-password-toggle'));
+  expect(secure('Enter WiFi Password')).toBe(true);
+  expect(secure('Enter Cloud Password')).toBe(false);
+});
+
 it('auto-logs in from a saved session, and logout clears it and stays on login', async () => {
   const secureStore = require('expo-secure-store');
   secureStore.__store.set(
@@ -294,17 +325,45 @@ describe('routing with the real firmware files', () => {
       .replace(/\r?\n/g, '\r\n');
 
   it('data.csv routes to the dashboard and shows its values', async () => {
-    hub.sensorCsv = fixture('data.csv');
+    hub.sensorCsv = fixture('data-timestamps.csv');
     const app = await loginAndConnect();
 
     await screen.findByText('Node 12', {}, { timeout: 5000 });
     expect(app.getPathname()).toBe('/dashboard');
     expect(screen.getByText('100.00%')).toBeTruthy(); // hub battery, hr 1 node 0
+    expect(screen.queryByTestId('no-node-data')).toBeNull();
 
     fireEvent.press(screen.getByText('Node 5'));
     await screen.findByText('Temperature (last 24h)');
-    expect(screen.getByText('75.22F')).toBeTruthy();
-    expect(screen.getByText('54.21%')).toBeTruthy();
+    expect(screen.getByText('75.24F')).toBeTruthy();
+    expect(screen.getByText('55.67%')).toBeTruthy();
+    expect(screen.getByText('Time')).toBeTruthy();
+    expect(screen.getByTestId('node-latest-time')).toHaveTextContent('Oct 29th, 7:28 PM');
+  });
+
+  it('a data.csv without timestamps (older firmware) shows no data found instead of the nodes', async () => {
+    hub.sensorCsv = fixture('data.csv');
+    const app = await loginAndConnect();
+
+    await screen.findByTestId('no-node-data', {}, { timeout: 5000 });
+    expect(app.getPathname()).toBe('/dashboard');
+    expect(
+      screen.getByText('No data found. Press the Sync button to get the latest node information.')
+    ).toBeTruthy();
+    expect(screen.queryByText('Node 1')).toBeNull();
+  });
+
+  it('only the hub has timestamps: no data found; a refresh with node data lists the nodes', async () => {
+    hub.sensorCsv = makeSensorCsv((node) => node === 0);
+    await loginAndConnect();
+    await screen.findByTestId('no-node-data', {}, { timeout: 5000 });
+    expect(screen.queryByText('Node 1')).toBeNull();
+
+    // The hub catches up with the nodes - pulling to refresh shows them
+    hub.sensorCsv = makeSensorCsv();
+    fireEvent.press(screen.getByText('Sync'));
+    await screen.findByText('Node 12', {}, { timeout: 5000 });
+    expect(screen.queryByTestId('no-node-data')).toBeNull();
   });
 
   it('init.csv routes to the setup screen', async () => {
@@ -662,11 +721,11 @@ describe('map: hub and available nodes', () => {
   });
 
   it('a CSV with only nodes 1-6 offers only nodes 1-6 to place', async () => {
-    const lines = ['Hr,Node,Battery,Temperature,Humidity'];
+    const lines = ['Hr,Node,Battery,Temperature,Humidity,Time Stamp'];
     for (let hr = 1; hr <= 24; hr++) {
       for (let node = 1; node <= 6; node++) {
         const r = reading(node, hr);
-        lines.push(`${hr},${node},${r.battery},${r.temperature},${r.humidity}`);
+        lines.push(`${hr},${node},${r.battery},${r.temperature},${r.humidity},${timestampFor(hr)}`);
       }
     }
     hub.sensorCsv = lines.join('\r\n');

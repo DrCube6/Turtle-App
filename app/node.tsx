@@ -8,6 +8,7 @@ import { useBLE } from "@/context/BLEContext";
 import { useOpenScreen } from "@/hooks/useOpenScreen";
 import { useAppTheme } from "@/context/ThemeContext";
 import { useScreenPadding } from "@/hooks/useScreenPadding";
+import { formatReadingTime } from "@/utils/time";
 
 // Show the screen anyway after this long, even if a graph never reports.
 // Mutable so tests can shorten it.
@@ -40,6 +41,12 @@ export default function Node() {
     .sort((a, b) => b.hr - a.hr);
 
   const hasHistory = nodeHistory.length > 0;
+
+  // When this node's newest reading was taken (lowest HR that has one)
+  const latestTimestamp =
+    sensorData
+      .filter(row => row.node === nodeNum && row.timestamp !== null)
+      .sort((a, b) => a.hr - b.hr)[0]?.timestamp ?? null;
 
   const hoursSeries = nodeHistory.map(row => row.hr);
   const temperatureSeries = nodeHistory.map(row => row.temperature);
@@ -138,7 +145,23 @@ export default function Node() {
           <ScrollView width="100%">
             <YStack gap="$4" paddingBottom={20}>
 
-              {/* Latest values */}
+              {/* Latest values: when, then the readings */}
+              <YStack
+                borderWidth={2}
+                borderColor={colors.subtle}
+                padding={15}
+                rounded={10}
+              >
+                <XStack justify="space-between">
+                  <Text color={colors.text} fontSize="$4">
+                    Time
+                  </Text>
+                  <Text testID="node-latest-time" color={colors.text} fontSize="$4">
+                    {latestTimestamp ? formatReadingTime(latestTimestamp) : "--"}
+                  </Text>
+                </XStack>
+              </YStack>
+
               <YStack
                 borderWidth={2}
                 borderColor={colors.subtle}
@@ -170,6 +193,15 @@ export default function Node() {
                   </Text>
                 </XStack>
               </YStack>
+
+              {/* Divides the latest values from the history graphs */}
+              <Separator
+                testID="node-values-separator"
+                borderColor={colors.subtle}
+                borderBottomWidth={2}
+                alignSelf="stretch"
+                rounded="$2"
+              />
 
               {/* Temperature graph */}
               <YStack gap="$2">
@@ -239,8 +271,9 @@ export default function Node() {
             >
               <Button
                 size="$3"
-                theme="blue"
-                opacity={0.6}
+                // Gray like Map/Config: blue marks the screen you're on, and
+                // the node view isn't one of the tabs - all three lead away.
+                theme="gray"
                 // Return to the existing dashboard instead of pushing a new
                 // one, which would re-run the BLE sync on mount
                 onPress={() => router.dismissTo("/dashboard")}

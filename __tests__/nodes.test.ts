@@ -1,6 +1,6 @@
 import { isHub, nodeLabel, nodeShortLabel, nodesInData } from '@/utils/nodes';
 
-const row = (node: number, hr = 1) => ({ hr, node, battery: 90, temperature: 70, humidity: 50 });
+const row = (node: number, hr = 1) => ({ hr, node, battery: 90, temperature: 70, humidity: 50, timestamp: null });
 
 it('names node 0 "Hub"', () => {
   expect(isHub(0)).toBe(true);

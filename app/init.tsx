@@ -4,7 +4,8 @@ import { useAppTheme } from "@/context/ThemeContext";
 import { useScreenPadding } from "@/hooks/useScreenPadding";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   Button,
   Input,
@@ -34,6 +35,9 @@ export default function Init() {
   const [wifiSsid, setWifiSsid] = useState('');
   const [wifiPass, setWifiPass] = useState('');
   const [sampleRate, setSampleRate] = useState('');
+  // Passwords are hidden; the eye button shows one to check for typos
+  const [showUserPassword, setShowUserPassword] = useState(false);
+  const [showWifiPass, setShowWifiPass] = useState(false);
 
   // AUTH KEY still comes from the cloud login response (useLogin) and is
   // still needed later when we build the CSV to send back to the ESP32 -
@@ -173,16 +177,27 @@ export default function Init() {
                 <Text fontSize="$3" color={colors.text}>
                   Cloud Password
                 </Text>
-                <Input
-                  theme="gray"
-                  width={"100%"}
-                  size="$4"
-                  placeholder="Enter Cloud Password"
-                  value={userPassword}
-                  onChangeText={setUserPassword}
-                  disabled={isBusy}
-                  autoCapitalize="none"
-                />
+                <XStack items="center" gap={8}>
+                  <Input
+                    testID="init-user-password"
+                    theme="gray"
+                    flex={1}
+                    size="$4"
+                    placeholder="Enter Cloud Password"
+                    value={userPassword}
+                    onChangeText={setUserPassword}
+                    disabled={isBusy}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    secureTextEntry={!showUserPassword}
+                  />
+                  <PasswordToggle
+                    testID="init-user-password-toggle"
+                    visible={showUserPassword}
+                    onToggle={() => setShowUserPassword((v) => !v)}
+                    color={colors.muted}
+                  />
+                </XStack>
               </YStack>
 
               <YStack gap="$2">
@@ -208,19 +223,30 @@ export default function Init() {
                 <Text fontSize="$3" color={colors.text}>
                   WIFI Password
                 </Text>
-                <Input
-                  theme="gray"
-                  width={"100%"}
-                  size="$4"
-                  placeholder="Enter WiFi Password"
-                  value={wifiPass}
-                  onChangeText={setWifiPass}
-                  disabled={isBusy}
-                  autoCapitalize="none"
-                  borderColor={wifiError ? "red" : undefined}
-                  borderWidth={wifiError ? 2 : undefined}
-                  focusStyle={wifiError ? { borderColor: "red", borderWidth: 2 } : undefined}
-                />
+                <XStack items="center" gap={8}>
+                  <Input
+                    testID="init-wifi-password"
+                    theme="gray"
+                    flex={1}
+                    size="$4"
+                    placeholder="Enter WiFi Password"
+                    value={wifiPass}
+                    onChangeText={setWifiPass}
+                    disabled={isBusy}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    secureTextEntry={!showWifiPass}
+                    borderColor={wifiError ? "red" : undefined}
+                    borderWidth={wifiError ? 2 : undefined}
+                    focusStyle={wifiError ? { borderColor: "red", borderWidth: 2 } : undefined}
+                  />
+                  <PasswordToggle
+                    testID="init-wifi-password-toggle"
+                    visible={showWifiPass}
+                    onToggle={() => setShowWifiPass((v) => !v)}
+                    color={colors.muted}
+                  />
+                </XStack>
               </YStack>
 
               <YStack gap="$2">
@@ -295,5 +321,37 @@ export default function Init() {
         </YStack>
       </YStack>
     </KeyboardAvoidingView>
+  );
+}
+
+// Eye button next to a password field: shows/hides what was typed
+function PasswordToggle({
+  testID,
+  visible,
+  onToggle,
+  color,
+}: {
+  testID: string;
+  visible: boolean;
+  onToggle: () => void;
+  color: string;
+}) {
+  return (
+    <Pressable
+      testID={testID}
+      onPress={onToggle}
+      accessibilityRole="button"
+      accessibilityLabel={visible ? "Hide password" : "Show password"}
+      hitSlop={8}
+      // Plain Pressable, no press fade: the icon stays the same gray always
+      style={{ padding: 4 }}
+    >
+      <MaterialCommunityIcons
+        // Icon shows the field's current state: crossed-out eye = hidden
+        name={visible ? "eye-outline" : "eye-off-outline"}
+        size={24}
+        color={color}
+      />
+    </Pressable>
   );
 }

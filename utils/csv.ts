@@ -4,7 +4,7 @@
 // The exact header row the ESP32 sends for real sensor-data CSVs.
 // Anything that doesn't match this is treated as the initial/config CSV.
 export const SENSOR_CSV_HEADER =
-  'HR (Most Recent 1 | Oldest 24),Node ID (#),Battery,Temperature,Humidity';
+  'Hr,Node,Battery,Temperature,Humidity,Time Stamp';
 
 // Row order the ESP32's init.csv expects - must match exactly
 export const CONFIG_FIELD_LABELS = [
@@ -22,6 +22,10 @@ export type SensorData = {
   battery: number;
   temperature: number;
   humidity: number;
+  // When the reading was taken, "YYYY-MM-DD HH:mm:ss" - null when the cell
+  // is empty/invalid (no data from that node) or the file predates the
+  // Time Stamp column
+  timestamp: string | null;
 };
 
 export type ConfigFields = {
@@ -42,8 +46,8 @@ export const parseCSV = (csv: string): SensorData[] => {
   const rows = lines.slice(1).filter(line => line.trim().length > 0);
 
   return rows.map(line => {
-    // Column order: HR, Node ID, Battery, Temperature, Humidity
-    const [hr, node, battery, temperature, humidity] = line.split(',');
+    // Column order: HR, Node ID, Battery, Temperature, Humidity, Time Stamp
+    const [hr, node, battery, temperature, humidity, timestamp] = line.split(',');
 
     return {
       hr: Number(hr),
@@ -51,9 +55,42 @@ export const parseCSV = (csv: string): SensorData[] => {
       battery: Number(battery),
       temperature: Number(temperature),
       humidity: Number(humidity),
+      timestamp: parseTimestamp(timestamp),
     };
   });
 };
+
+// "2026-10-29 19:28:29" -> the same string; also accepts single-digit
+// month/day/hour ("2026-10-29 9:28:29", as spreadsheets export it) and
+// zero-pads them. Anything else (empty cell, garbage) -> null.
+export const parseTimestamp = (raw: string | undefined): string | null => {
+  const m = raw
+    ?.trim()
+    .match(/^(\d{4})-(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{2}):(\d{2})$/);
+  if (!m) return null;
+
+  const [year, month, day, hour, minute, second] = m.slice(1).map(Number);
+  // Reject impossible dates like 2026-02-30 or 25:00:00
+  const date = new Date(year, month - 1, day, hour, minute, second);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day ||
+    date.getHours() !== hour ||
+    minute > 59 ||
+    second > 59
+  ) {
+    return null;
+  }
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${year}-${pad(month)}-${pad(day)} ${pad(hour)}:${pad(minute)}:${pad(second)}`;
+};
+
+// True when at least one field node (not the hub, node 0) has a timestamped
+// reading - otherwise the hub has nothing real from the nodes to show
+export const hasNodeTimestamps = (rows: SensorData[]): boolean =>
+  rows.some(row => row.node !== 0 && row.timestamp !== null);
 
 // Header cells of the first line, lowercased and trimmed. Strips a UTF-8 BOM
 // and copes with CRLF line endings.

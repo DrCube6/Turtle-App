@@ -29,13 +29,25 @@ export const reading = (node: number, hr: number) => ({
   humidity: Number((40 + node - hr / 10).toFixed(1)),
 });
 
-export function makeSensorCsv(): string {
+// Time Stamp of each hour, like the firmware: hr 1 = 2026-10-29 19:28:29,
+// each older hour one hour earlier ("YYYY-MM-DD HH:mm:ss")
+export const timestampFor = (hr: number): string => {
+  const d = new Date(Date.UTC(2026, 9, 29, 19, 28, 29) - (hr - 1) * 3600_000);
+  return d.toISOString().slice(0, 19).replace('T', ' ');
+};
+
+// withTimestamps(node) false -> that node's Time Stamp cell is left empty,
+// as the hub does for a node it has no data from
+export function makeSensorCsv(
+  withTimestamps: (node: number) => boolean = () => true
+): string {
   const lines = [SENSOR_CSV_HEADER];
   for (let hr = 1; hr <= HOURS; hr++) {
     // node 0 is the hub itself, 1..12 are the field nodes
     for (let node = 0; node <= NODE_COUNT; node++) {
       const r = reading(node, hr);
-      lines.push(`${hr},${node},${r.battery},${r.temperature},${r.humidity}`);
+      const ts = withTimestamps(node) ? timestampFor(hr) : '';
+      lines.push(`${hr},${node},${r.battery},${r.temperature},${r.humidity},${ts}`);
     }
   }
   // Firmware writes CRLF line endings

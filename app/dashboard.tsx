@@ -5,6 +5,7 @@ import { SyncProgress } from "@/components/SyncProgress";
 import { useBLE } from "@/context/BLEContext";
 import { useNow } from "@/hooks/useNow";
 import { formatSyncedAgo } from "@/utils/time";
+import { hasNodeTimestamps } from "@/utils/csv";
 import { useOpenScreen } from "@/hooks/useOpenScreen";
 import { useAppTheme } from "@/context/ThemeContext";
 import { useScreenPadding } from "@/hooks/useScreenPadding";
@@ -246,6 +247,20 @@ export default function Dashboard() {
             />
           }
         >
+          {/* No timestamped readings from any field node (only the hub, or
+              an old file without timestamps) - nothing real to list */}
+          {!hasNodeTimestamps(sensorData) ? (
+            <Text
+              testID="no-node-data"
+              color={colors.muted}
+              fontSize="$4"
+              text="center"
+              paddingTop={20}
+              paddingHorizontal={10}
+            >
+              No data found. Press the Sync button to get the latest node information.
+            </Text>
+          ) : (
           <YStack gap="$4">
             {latestFieldNodes.map((row) => (
               <Button
@@ -274,6 +289,7 @@ export default function Dashboard() {
               </Button>
             ))}
           </YStack>
+          )}
         </ScrollView>
         {/* Bottom Buttons */}
         <YStack width="100%" justify="flex-end">
