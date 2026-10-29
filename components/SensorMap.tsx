@@ -375,19 +375,23 @@ function RoundedFrame({ width, height }: { width: number; height: number }) {
     `H${r}A${r} ${r} 0 0 1 0 ${height - r}V${r}A${r} ${r} 0 0 1 ${r} 0Z`;
 
   return (
-    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Path d={corners} fill={background} fillRule="evenodd" />
-      <Rect
-        x={FRAME_BORDER / 2}
-        y={FRAME_BORDER / 2}
-        width={width - FRAME_BORDER}
-        height={height - FRAME_BORDER}
-        rx={r - FRAME_BORDER / 2}
-        fill="none"
-        stroke={colors.subtle}
-        strokeWidth={FRAME_BORDER}
-      />
-    </Svg>
+    // The wrapping View is what lets touches through to the map: on iOS an
+    // <Svg> ignores pointerEvents and swallows every pinch and long press
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Svg style={StyleSheet.absoluteFill}>
+        <Path d={corners} fill={background} fillRule="evenodd" />
+        <Rect
+          x={FRAME_BORDER / 2}
+          y={FRAME_BORDER / 2}
+          width={width - FRAME_BORDER}
+          height={height - FRAME_BORDER}
+          rx={r - FRAME_BORDER / 2}
+          fill="none"
+          stroke={colors.subtle}
+          strokeWidth={FRAME_BORDER}
+        />
+      </Svg>
+    </View>
   );
 }
 

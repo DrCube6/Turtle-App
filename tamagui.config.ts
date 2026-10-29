@@ -10,6 +10,10 @@ export const config = createTamagui({
     // longhands (backgroundColor, padding, alignSelf...) throughout, which
     // Tamagui applies at runtime either way, so allow them in the types too.
     onlyAllowShorthands: false,
+    // On iOS the preset resolves light/dark colors from the phone's system
+    // appearance (DynamicColorIOS), ignoring <Theme name="light">. The app
+    // has its own theme switch, so make Tamagui follow that instead.
+    fastSchemeChange: false,
   },
   animations: createAnimations({
     quick: {
