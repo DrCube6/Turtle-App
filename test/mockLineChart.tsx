@@ -6,6 +6,7 @@ import { View } from 'react-native';
 export function LineChart(props: {
   data: unknown;
   width: number;
+  getDotColor?: (value: number, index: number) => string;
   onDataPointClick?: (point: { index: number; value: number; x: number; y: number }) => void;
 }) {
   return (
@@ -14,6 +15,7 @@ export function LineChart(props: {
       // @ts-expect-error test-only props, read back via testID
       chartData={props.data}
       chartWidth={props.width}
+      getDotColor={props.getDotColor}
       onDataPointClick={props.onDataPointClick}
     />
   );

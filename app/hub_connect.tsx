@@ -158,10 +158,15 @@ export default function HubConnect() {
                 borderBottomWidth={3}
                 alignSelf="stretch"
               />
+              {/* No logging out mid-connect (including retries) - it would
+                  pull the login out from under the connection */}
               <Button
+                testID="hub-logout"
                 size="$3"
                 theme="gray"
                 onPress={handleLogout}
+                disabled={isConnecting || connectingId !== null}
+                disabledStyle={{ opacity: 0.5 }}
               >
                 Log Out
               </Button>

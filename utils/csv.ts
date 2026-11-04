@@ -45,20 +45,30 @@ export const parseCSV = (csv: string): SensorData[] => {
   // Remove header, and skip blank lines so they don't become all-zero rows
   const rows = lines.slice(1).filter(line => line.trim().length > 0);
 
-  return rows.map(line => {
+  return rows.flatMap(line => {
     // Column order: HR, Node ID, Battery, Temperature, Humidity, Time Stamp
     const [hr, node, battery, temperature, humidity, timestamp] = line.split(',');
 
-    return {
+    // "9,4,,,," - the hub has no reading from that node for that hour.
+    // Leave the row out, so the node/hour doesn't show up as all zeros.
+    if (![battery, temperature, humidity].some(cell => cell?.trim())) {
+      return [];
+    }
+
+    return [{
       hr: Number(hr),
       node: Number(node),
-      battery: Number(battery),
-      temperature: Number(temperature),
-      humidity: Number(humidity),
+      battery: readingValue(battery),
+      temperature: readingValue(temperature),
+      humidity: readingValue(humidity),
       timestamp: parseTimestamp(timestamp),
-    };
+    }];
   });
 };
+
+// A blank cell is a missing value (NaN), not 0 - Number('') would be 0
+const readingValue = (cell: string | undefined): number =>
+  cell?.trim() ? Number(cell) : NaN;
 
 // "2026-10-29 19:28:29" -> the same string; also accepts single-digit
 // month/day/hour ("2026-10-29 9:28:29", as spreadsheets export it) and

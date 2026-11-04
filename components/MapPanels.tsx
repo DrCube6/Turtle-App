@@ -5,8 +5,10 @@ import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
 import { BatteryIcon } from "@/components/BatteryIcon";
 import type { NodePlacements } from "@/hooks/useNodePlacements";
 import type { SensorData } from "@/utils/csv";
-import { isHub, nodeLabel, nodeShortLabel } from "@/utils/nodes";
+import { formatPercent, isHub, nodeLabel, nodeShortLabel } from "@/utils/nodes";
 import { useAppTheme } from "@/context/ThemeContext";
+import { useTemperatureUnit } from "@/hooks/useTemperatureUnit";
+import { formatTemperature } from "@/utils/temperature";
 
 // Panel frame; borderColor (gray, like the map frame above) is set per
 // theme where it is used
@@ -128,6 +130,8 @@ export function NodeInfoPanel({
   onViewFullData: () => void;
 }) {
   const { colors } = useAppTheme();
+  // Hub sends Celsius; shown in the unit chosen in Config
+  const { unit } = useTemperatureUnit();
   return (
     <YStack {...panelFrame} borderColor={colors.subtle}>
       {/* Node and its battery */}
@@ -138,7 +142,7 @@ export function NodeInfoPanel({
         {reading && (
           <XStack gap={6} items="center">
             <Text color={colors.text} fontSize="$4">
-              {reading.battery}%
+              {formatPercent(reading.battery)}
             </Text>
             <BatteryIcon percent={reading.battery} />
           </XStack>
@@ -169,7 +173,7 @@ export function NodeInfoPanel({
               paddingHorizontal={6}
               onPress={onViewFullData}
             >
-              {`${reading.temperature}°F`}
+              {formatTemperature(reading.temperature, unit)}
             </Button>
             <Button
               testID="info-humidity"
@@ -179,7 +183,7 @@ export function NodeInfoPanel({
               paddingHorizontal={6}
               onPress={onViewFullData}
             >
-              {`${reading.humidity}%`}
+              {formatPercent(reading.humidity)}
             </Button>
           </>
         ) : (

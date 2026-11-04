@@ -10,7 +10,7 @@ import { useBLE } from "@/context/BLEContext";
 import { useNodePlacements } from "@/hooks/useNodePlacements";
 import { useSavedMapView } from "@/hooks/useSavedMapView";
 import { useDefaultMapView } from "@/hooks/useDefaultMapView";
-import { isHub, nodesInData } from "@/utils/nodes";
+import { isHub, latestReadings, nodesInData } from "@/utils/nodes";
 import { useOpenScreen } from "@/hooks/useOpenScreen";
 import { useAppTheme } from "@/context/ThemeContext";
 import { useScreenPadding } from "@/hooks/useScreenPadding";
@@ -45,11 +45,11 @@ export default function Map() {
   // Only nodes that are in the synced CSV can be placed (hub first)
   const availableNodes = nodesInData(sensorData);
 
-  // Most recent reading (hr 1) for the tapped node
+  // Most recent reading for the tapped node
   const infoReading =
     infoNode === null
       ? undefined
-      : sensorData.find((row) => row.hr === 1 && row.node === infoNode);
+      : latestReadings(sensorData).find((row) => row.node === infoNode);
 
   const cancelPlacing = () => {
     setPendingCoordinate(null);

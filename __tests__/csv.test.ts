@@ -32,6 +32,15 @@ describe('parseCSV', () => {
     });
   });
 
+  it('leaves out rows with no readings ("9,4,,,,"), and a single blank cell is NaN not 0', () => {
+    const rows = parseCSV(
+      `${SENSOR_CSV_HEADER}\n1,4,90,72.5,40,2026-10-29 19:28:29\n1,9,,,,\n2,4,,71.2,41,2026-10-29 18:28:29\n`
+    );
+    expect(rows.map(r => [r.hr, r.node])).toEqual([[1, 4], [2, 4]]);
+    expect(rows[1].battery).toBeNaN();
+    expect(rows[1].temperature).toBe(71.2);
+  });
+
   it('an empty Time Stamp cell parses as null', () => {
     const rows = parseCSV(`${SENSOR_CSV_HEADER}\n1,5,90,72.5,40,\n2,5,90,72.4,41\n`);
     expect(rows.map(r => r.timestamp)).toEqual([null, null]);

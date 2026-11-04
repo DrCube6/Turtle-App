@@ -6,6 +6,7 @@ import { useBLE } from "@/context/BLEContext";
 import { useNow } from "@/hooks/useNow";
 import { formatSyncedAgo } from "@/utils/time";
 import { hasNodeTimestamps } from "@/utils/csv";
+import { formatPercent, isDisconnected, latestReadings } from "@/utils/nodes";
 import { useOpenScreen } from "@/hooks/useOpenScreen";
 import { useAppTheme } from "@/context/ThemeContext";
 import { useScreenPadding } from "@/hooks/useScreenPadding";
@@ -34,7 +35,8 @@ export default function Dashboard() {
   // Ticks so "Synced 5 min ago" stays current while the screen is open
   const now = useNow();
 
-  const latestNodes = sensorData.filter((row) => row.hr === 1);
+  // Nodes with no readings in the CSV are left out entirely
+  const latestNodes = latestReadings(sensorData);
 
   // Hub (node 0) battery, most recent reading only
   const hubBattery = latestNodes.find((row) => row.node === 0)?.battery;
@@ -44,11 +46,21 @@ export default function Dashboard() {
     (row) => row.node >= 1 && row.node <= 12,
   );
 
+  // Newest hour missing or incomplete: the node stopped sending properly
+  const isNodeDisconnected = (row: { node: number }) =>
+    isDisconnected(sensorData, row.node);
+
+  // Average of the nodes still reporting - a disconnected node's battery
+  // is out of date. Nodes with no battery value at all are skipped.
+  const connectedBatteries = latestFieldNodes
+    .filter((row) => !isNodeDisconnected(row))
+    .map((row) => row.battery)
+    .filter(Number.isFinite);
   const averageNodeBattery =
-    latestFieldNodes.length > 0
-      ? latestFieldNodes.reduce((acc, row) => acc + row.battery, 0) /
-        latestFieldNodes.length
-      : 0;
+    connectedBatteries.length > 0
+      ? connectedBatteries.reduce((acc, battery) => acc + battery, 0) /
+        connectedBatteries.length
+      : null;
 
   //start monitoring
   useEffect(() => {
@@ -179,7 +191,7 @@ export default function Dashboard() {
             </Text>
             <XStack gap={6} items="center">
               <Text color={colors.text} fontSize="$5" fontWeight="bold">
-                {hubBattery?.toFixed(2)}%
+                {hubBattery !== undefined && Number.isFinite(hubBattery) ? `${hubBattery.toFixed(2)}%` : "--"}
               </Text>
               <BatteryIcon percent={hubBattery} size={24} />
             </XStack>
@@ -220,9 +232,9 @@ export default function Dashboard() {
             </Text>
             <XStack gap={6} items="center">
               <Text color={colors.text} fontSize="$4">
-                {averageNodeBattery.toFixed(2)}%
+                {averageNodeBattery === null ? "--" : `${averageNodeBattery.toFixed(2)}%`}
               </Text>
-              <BatteryIcon percent={averageNodeBattery} />
+              <BatteryIcon percent={averageNodeBattery ?? undefined} />
             </XStack>
           </XStack>
           <Separator
@@ -265,7 +277,10 @@ export default function Dashboard() {
             {latestFieldNodes.map((row) => (
               <Button
                 key={row.node}
+                testID={`node-${row.node}-button`}
                 theme="yellow"
+                // Grayed out when disconnected, but still opens its history
+                opacity={isNodeDisconnected(row) ? 0.5 : 1}
                 onPress={() =>
                   openScreen("/node", {
                       node: row.node.toString(),
@@ -279,12 +294,18 @@ export default function Dashboard() {
                   <Text color={colors.text} fontSize="$4">
                     Node {row.node}
                   </Text>
-                  <XStack gap={6} items="center">
-                    <Text color={colors.text} fontSize="$4">
-                      {row.battery}%
+                  {isNodeDisconnected(row) ? (
+                    <Text testID={`node-${row.node}-disconnected`} color={colors.text} fontSize="$4">
+                      Disconnected
                     </Text>
-                    <BatteryIcon percent={row.battery} />
-                  </XStack>
+                  ) : (
+                    <XStack gap={6} items="center">
+                      <Text color={colors.text} fontSize="$4">
+                        {formatPercent(row.battery)}
+                      </Text>
+                      <BatteryIcon percent={row.battery} />
+                    </XStack>
+                  )}
                 </XStack>
               </Button>
             ))}

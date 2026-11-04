@@ -8,7 +8,10 @@ import { useBLE } from "@/context/BLEContext";
 import { useOpenScreen } from "@/hooks/useOpenScreen";
 import { useAppTheme } from "@/context/ThemeContext";
 import { useScreenPadding } from "@/hooks/useScreenPadding";
+import { formatPercent, historySeries, isDisconnected } from "@/utils/nodes";
 import { formatReadingTime } from "@/utils/time";
+import { useTemperatureUnit } from "@/hooks/useTemperatureUnit";
+import { formatTemperature, toUnit } from "@/utils/temperature";
 
 // Show the screen anyway after this long, even if a graph never reports.
 // Mutable so tests can shorten it.
@@ -17,6 +20,8 @@ export const NODE_LOADING = { fallbackMs: 3000 };
 export default function Node() {
   const screenPadding = useScreenPadding();
   const { colors } = useAppTheme();
+  // Hub sends Celsius; shown in the unit chosen in Config
+  const { unit } = useTemperatureUnit();
   // Main screens open like tabs - no duplicate copies piling up
   const openScreen = useOpenScreen();
 
@@ -28,19 +33,8 @@ export default function Node() {
 
   const nodeNum = Number(node);
 
-  // All HR readings (1 = most recent, up to 24 = oldest) for this node,
-  // sorted oldest -> newest so the chart reads left-to-right as a timeline
-  const nodeHistory = sensorData
-    .filter(row =>
-      row.node === nodeNum &&
-      row.hr >= 1 && row.hr <= 24 &&
-      // react-native-chart-kit crashes on NaN, so drop malformed CSV rows
-      Number.isFinite(row.temperature) &&
-      Number.isFinite(row.humidity)
-    )
-    .sort((a, b) => b.hr - a.hr);
-
-  const hasHistory = nodeHistory.length > 0;
+  // Has readings in the last 24h but none in the newest hour
+  const disconnected = isDisconnected(sensorData, nodeNum);
 
   // When this node's newest reading was taken (lowest HR that has one)
   const latestTimestamp =
@@ -48,16 +42,22 @@ export default function Node() {
       .filter(row => row.node === nodeNum && row.timestamp !== null)
       .sort((a, b) => a.hr - b.hr)[0]?.timestamp ?? null;
 
-  const hoursSeries = nodeHistory.map(row => row.hr);
-  const temperatureSeries = nodeHistory.map(row => row.temperature);
-  const humiditySeries = nodeHistory.map(row => row.humidity);
+  // Oldest -> newest, from the first to the last hour with a value; missing
+  // hours in between are null (drawn as gaps, see HistoryChart)
+  const temperatureHistory = historySeries(sensorData, nodeNum, row =>
+    Number(toUnit(row.temperature, unit).toFixed(2))
+  );
+  const humidityHistory = historySeries(sensorData, nodeNum, row => row.humidity);
 
   // Loading stages: nothing mounted -> content built hidden -> revealed.
   // Restarts when the screen is reused for a different node.
   const [mounted, setMounted] = useState(false);
   const [chartsDrawn, setChartsDrawn] = useState(0);
   const [timedOut, setTimedOut] = useState(false);
-  const chartsNeeded = hasHistory ? 2 : 0;
+  // Only graphs that have data are drawn (and report back)
+  const chartsNeeded =
+    (temperatureHistory.values.length > 0 ? 1 : 0) +
+    (humidityHistory.values.length > 0 ? 1 : 0);
   const ready = mounted && (chartsDrawn >= chartsNeeded || timedOut);
 
   const markChartDrawn = useCallback(() => setChartsDrawn((n) => n + 1), []);
@@ -126,12 +126,18 @@ export default function Node() {
               <Text color={colors.text} fontSize="$5" fontWeight="bold">
                 Node {node}
               </Text>
-              <XStack gap={6} items="center">
-                <Text color={colors.text} fontSize="$5" fontWeight="bold">
-                  {battery}%
+              {disconnected ? (
+                <Text testID="node-disconnected" color={colors.text} fontSize="$5" fontWeight="bold">
+                  Disconnected
                 </Text>
-                <BatteryIcon percent={Number(battery)} size={24} />
-              </XStack>
+              ) : (
+                <XStack gap={6} items="center">
+                  <Text color={colors.text} fontSize="$5" fontWeight="bold">
+                    {formatPercent(Number(battery))}
+                  </Text>
+                  <BatteryIcon percent={Number(battery)} size={24} />
+                </XStack>
+              )}
             </XStack>
             <Separator
               borderColor={colors.subtle}
@@ -173,7 +179,7 @@ export default function Node() {
                     Temperature
                   </Text>
                   <Text color={colors.text} fontSize="$4">
-                    {temperature}F
+                    {formatTemperature(Number(temperature), unit)}
                   </Text>
                 </XStack>
               </YStack>
@@ -189,7 +195,7 @@ export default function Node() {
                     Humidity
                   </Text>
                   <Text color={colors.text} fontSize="$4">
-                    {humidity}%
+                    {formatPercent(Number(humidity))}
                   </Text>
                 </XStack>
               </YStack>
@@ -208,12 +214,12 @@ export default function Node() {
                 <Text color={colors.text} fontSize="$4" fontWeight="bold">
                   Temperature (last 24h)
                 </Text>
-                {hasHistory ? (
+                {temperatureHistory.values.length > 0 ? (
                   <HistoryChart
                     testID="temperature-chart"
-                    values={temperatureSeries}
-                    hours={hoursSeries}
-                    unit="F"
+                    values={temperatureHistory.values}
+                    hours={temperatureHistory.hours}
+                    unit={`°${unit}`}
                     onDrawn={markChartDrawn}
                   />
                 ) : (
@@ -228,11 +234,11 @@ export default function Node() {
                 <Text color={colors.text} fontSize="$4" fontWeight="bold">
                   Humidity (last 24h)
                 </Text>
-                {hasHistory ? (
+                {humidityHistory.values.length > 0 ? (
                   <HistoryChart
                     testID="humidity-chart"
-                    values={humiditySeries}
-                    hours={hoursSeries}
+                    values={humidityHistory.values}
+                    hours={humidityHistory.hours}
                     unit="%"
                     onDrawn={markChartDrawn}
                   />

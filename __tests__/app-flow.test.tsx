@@ -86,7 +86,7 @@ it('logs in, connects, syncs and shows a node with its 24h graphs', async () => 
 
   // Latest values (hr = 1) at the top
   const latest = reading(5, 1);
-  expect(screen.getByText(`${latest.temperature}F`)).toBeTruthy();
+  expect(screen.getByText(`${latest.temperature}°C`)).toBeTruthy();
   expect(screen.getByText(`${latest.humidity}%`)).toBeTruthy();
 
   // Two charts: temperature then humidity, 24 points, oldest -> newest
@@ -335,7 +335,7 @@ describe('routing with the real firmware files', () => {
 
     fireEvent.press(screen.getByText('Node 5'));
     await screen.findByText('Temperature (last 24h)');
-    expect(screen.getByText('75.24F')).toBeTruthy();
+    expect(screen.getByText('75.24°C')).toBeTruthy();
     expect(screen.getByText('55.67%')).toBeTruthy();
     expect(screen.getByText('Time')).toBeTruthy();
     expect(screen.getByTestId('node-latest-time')).toHaveTextContent('Oct 29th, 7:28 PM');
@@ -351,6 +351,117 @@ describe('routing with the real firmware files', () => {
       screen.getByText('No data found. Press the Sync button to get the latest node information.')
     ).toBeTruthy();
     expect(screen.queryByText('Node 1')).toBeNull();
+  });
+
+  it('incomplete data.csv: lists only nodes with readings, graphs only the hours that have data', async () => {
+    hub.sensorCsv = fixture('data_incomplete.csv');
+    await loginAndConnect();
+
+    // Nodes 1-8 have readings; 9-12 are blank in every hour
+    await screen.findByText('Node 8', {}, { timeout: 5000 });
+    for (const n of [9, 10, 11, 12]) expect(screen.queryByText(`Node ${n}`)).toBeNull();
+    expect(screen.getByText('100.00%')).toBeTruthy(); // hub, hr 1
+
+    fireEvent.press(screen.getByText('Node 5'));
+    await screen.findByText('Temperature (last 24h)');
+    expect(screen.getByText('76.17°C')).toBeTruthy();
+    expect(screen.getByTestId('node-latest-time')).toHaveTextContent('Oct 29th, 7:28 PM');
+
+    // Hours 9-24 are blank: only the 8 real hours are drawn, no zeros
+    for (const id of ['temperature-chart', 'humidity-chart']) {
+      const chart = within(screen.getByTestId(id)).getByTestId('line-chart');
+      const values: number[] = chart.props.chartData.datasets[0].data;
+      expect(values).toHaveLength(8);
+      expect(values.every((v) => v > 0)).toBe(true);
+    }
+  });
+
+  // Node 1: readings only at hours 1, 2, 3, 8, 9. Node 9: hours 3-8 only (stopped
+  // sending). Every other node: all 24 hours.
+  const gappyCsv = () => {
+    const lines = ['Hr,Node,Battery,Temperature,Humidity,Time Stamp'];
+    for (let hr = 1; hr <= 24; hr++) {
+      for (let node = 0; node <= 12; node++) {
+        const has =
+          node === 1 ? [1, 2, 3, 8, 9].includes(hr) : node === 9 ? hr >= 3 && hr <= 8 : true;
+        const r = reading(node, hr);
+        lines.push(has ? `${hr},${node},${r.battery},${r.temperature},${r.humidity},${timestampFor(hr)}` : `${hr},${node},,,,`);
+      }
+    }
+    return lines.join('\r\n');
+  };
+
+  it('a battery left blank in the newest hour: the node shows Disconnected, never NaN', async () => {
+    hub.sensorCsv = fixture('data_missing_battery.csv');
+    await loginAndConnect();
+    await screen.findByText('Node 9', {}, { timeout: 5000 });
+    expect(screen.queryByText(/NaN/)).toBeNull();
+    // Node 9's Hr 1 row has no battery: incomplete -> Disconnected
+    expect(screen.getByTestId('node-9-disconnected')).toHaveTextContent('Disconnected');
+    // Nodes 1-8 have complete Hr 1 rows
+    for (let n = 1; n <= 8; n++) expect(screen.queryByTestId(`node-${n}-disconnected`)).toBeNull();
+
+    // Disconnected node's button is grayed out; connected ones aren't
+    const opacity = (n: number) => StyleSheet.flatten(screen.getByTestId(`node-${n}-button`).props.style)?.opacity;
+    expect(opacity(9)).toBe(0.5);
+    expect(opacity(1) ?? 1).toBe(1);
+
+    fireEvent.press(screen.getByText('Node 9'));
+    await screen.findByText('Temperature (last 24h)');
+    expect(screen.getByTestId('node-disconnected')).toHaveTextContent('Disconnected');
+    expect(screen.queryByText(/NaN/)).toBeNull();
+  });
+
+  it('a node that stopped sending shows Disconnected on the dashboard and node view', async () => {
+    hub.sensorCsv = gappyCsv();
+    await loginAndConnect();
+    await screen.findByText('Node 12', {}, { timeout: 5000 });
+
+    expect(screen.getByTestId('node-9-disconnected')).toHaveTextContent('Disconnected');
+    expect(screen.queryByTestId('node-1-disconnected')).toBeNull();
+    expect(screen.getByText(`${reading(1, 1).battery}%`)).toBeTruthy();
+
+    fireEvent.press(screen.getByText('Node 9'));
+    await screen.findByText('Temperature (last 24h)');
+    expect(screen.getByTestId('node-disconnected')).toHaveTextContent('Disconnected');
+    expect(screen.queryByText(`${reading(9, 3).battery}%`)).toBeNull();
+
+    // Graph runs from its first reading (-8h) to -1h; hours 2 and 1 have
+    // no reading, so they're hollow rings
+    const chart = within(screen.getByTestId('temperature-chart')).getByTestId('line-chart');
+    const data: number[] = chart.props.chartData.datasets[0].data;
+    expect(data).toHaveLength(8);
+    expect(chart.props.chartData.labels.at(-1)).toBe('-1h');
+    const dots = data.map((v, i) => chart.props.getDotColor(v, i));
+    expect(dots.map((c) => c !== dots[0])).toEqual([false, false, false, false, false, false, true, true]);
+  });
+
+  it('graph gaps: only missing hours between readings are shown, as hollow rings saying "No data"', async () => {
+    hub.sensorCsv = gappyCsv();
+    await loginAndConnect();
+    fireEvent.press(await screen.findByText('Node 1', {}, { timeout: 5000 }));
+    await screen.findByText('Temperature (last 24h)');
+    expect(screen.queryByTestId('node-disconnected')).toBeNull();
+
+    for (const id of ['temperature-chart', 'humidity-chart']) {
+      const chart = within(screen.getByTestId(id)).getByTestId('line-chart');
+      const data: number[] = chart.props.chartData.datasets[0].data;
+      // -9h .. -1h: hours 10-24 are left off entirely
+      expect(data).toHaveLength(9);
+      expect(data.every(Number.isFinite)).toBe(true);
+      // hours 7, 6, 5, 4 (in between) are hollow rings: a different dot
+      // colour (the background) from the real readings
+      const dots = data.map((v, i) => chart.props.getDotColor(v, i));
+      const solid = dots[0];
+      expect(dots.map((c) => c !== solid)).toEqual([false, false, true, true, true, true, false, false, false]);
+    }
+
+    // Tapping a ring says there's no reading for that hour
+    const temp = within(screen.getByTestId('temperature-chart')).getByTestId('line-chart');
+    act(() => temp.props.onDataPointClick({ index: 3, value: 0, x: 100, y: 90 }));
+    const tooltip = screen.getByTestId('temperature-chart-tooltip');
+    expect(within(tooltip).getByText('No data')).toBeTruthy();
+    expect(within(tooltip).getByText('-6h')).toBeTruthy();
   });
 
   it('only the hub has timestamps: no data found; a refresh with node data lists the nodes', async () => {
@@ -515,10 +626,32 @@ it('flaky first connects: shows Connecting... and still reaches the dashboard', 
   fireEvent.press(await screen.findByText('Turtle-MC'));
 
   expect(await screen.findByText('Connecting to Turtle-MC...')).toBeTruthy();
+  // Can't log out mid-connect
+  expect(screen.getByTestId('hub-logout')).toBeDisabled();
+  fireEvent.press(screen.getByTestId('hub-logout'));
+  expect(app.getPathname()).toBe('/hub_connect');
   await screen.findByText('Node 12', {}, { timeout: 8000 });
   expect(app.getPathname()).toBe('/dashboard');
   expect(hub.connectAttempts).toBe(3);
   expect(Alert.alert).not.toHaveBeenCalled();
+});
+
+it('Log Out is disabled while connecting and works again after a failed connect', async () => {
+  const secureStore = require('expo-secure-store');
+  hub.failConnects = 99; // every attempt fails
+  const app = await loginAndConnect();
+
+  await screen.findByText('Connecting to Turtle-MC...');
+  expect(screen.getByTestId('hub-logout')).toBeDisabled();
+
+  // All retries failed: back to normal, Log Out works
+  await waitFor(() => expect(screen.getByTestId('hub-logout')).toBeEnabled(), { timeout: 10000 });
+  expect(app.getPathname()).toBe('/hub_connect');
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('hub-logout'));
+  });
+  await waitFor(() => expect(app.getPathname()).toBe('/login'));
+  expect(secureStore.__store.has('turtle_app_login_state')).toBe(false);
 });
 
 describe('map: placing nodes with long press', () => {
@@ -622,7 +755,7 @@ describe('map: placing nodes with long press', () => {
     expect(screen.getByText('Node 5')).toBeTruthy();
     expect(screen.getByText(`${latest.battery}%`)).toBeTruthy();
     expect(screen.getByTestId('battery-icon')).toBeTruthy();
-    expect(within(screen.getByTestId('info-temperature')).getByText(`${latest.temperature}°F`)).toBeTruthy();
+    expect(within(screen.getByTestId('info-temperature')).getByText(`${latest.temperature}°C`)).toBeTruthy();
     expect(within(screen.getByTestId('info-close')).getByText('✕ Close')).toBeTruthy();
     expect(within(screen.getByTestId('info-humidity')).getByText(`${latest.humidity}%`)).toBeTruthy();
     expect(screen.queryByText(/humidity$/)).toBeNull(); // "humidity" label removed
@@ -631,7 +764,7 @@ describe('map: placing nodes with long press', () => {
     fireEvent.press(screen.getByTestId(buttonId));
     await screen.findByText('Temperature (last 24h)');
     expect(app.getPathname()).toBe('/node');
-    expect(screen.getAllByText(`${latest.temperature}F`).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(`${latest.temperature}°C`).length).toBeGreaterThan(0);
   });
 
   it('closing the info panel (✕ or tapping the map) brings the nav bar back', async () => {
@@ -964,7 +1097,7 @@ describe('node view graphs', () => {
     // 3rd point from the left = 22 hours ago
     act(() => tempChart.props.onDataPointClick({ index: 2, value: 0, x: 80, y: 90 }));
     const tooltip = screen.getByTestId('temperature-chart-tooltip');
-    expect(within(tooltip).getByText(`${reading(5, 22).temperature}F`)).toBeTruthy();
+    expect(within(tooltip).getByText(`${reading(5, 22).temperature}°C`)).toBeTruthy();
     expect(within(tooltip).getByText('-22h')).toBeTruthy();
 
     // Humidity has its own tooltip with its own unit
@@ -1537,5 +1670,66 @@ describe('node view: Fetching Node X while the graphs draw', () => {
     } finally {
       NODE_LOADING.fallbackMs = original;
     }
+  });
+});
+
+describe('temperature unit: Celsius by default, Fahrenheit from Config', () => {
+  const AsyncStorage = require('@react-native-async-storage/async-storage');
+  const latest = reading(5, 1);
+  const fahrenheit = (c: number) => `${Number(((c * 9) / 5 + 32).toFixed(2))}°F`;
+
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+  });
+  // Don't leave Fahrenheit saved for the tests that run after these
+  afterEach(async () => {
+    await AsyncStorage.clear();
+  });
+
+  const openConfig = async () => {
+    await loginAndConnect();
+    await screen.findByText('Node 12', {}, { timeout: 5000 });
+    fireEvent.press(screen.getByText('Config'));
+    await screen.findByText('Configure');
+  };
+
+  it('Config has the yellow toggle above Change Default Map Location, starting on Celsius', async () => {
+    await openConfig();
+    const toggle = screen.getByTestId('toggle-temperature-unit');
+    expect(toggle).toHaveTextContent('Toggle Temperature (Celsius)');
+
+    // Screen order: the toggle comes right before Change Default Map Location
+    const ids = screen.root
+      .findAll((el: any) => typeof el.props.testID === 'string')
+      .map((el: any) => el.props.testID as string)
+      .filter((id: string, i: number, all: string[]) => all.indexOf(id) === i);
+    const toggleAt = ids.indexOf('toggle-temperature-unit');
+    expect(toggleAt).toBeGreaterThan(-1);
+    expect(ids[toggleAt + 1]).toBe('change-default-map-location');
+  });
+
+  it('switching to Fahrenheit converts the node view reading and graph, and is saved', async () => {
+    await openConfig();
+    fireEvent.press(screen.getByTestId('toggle-temperature-unit'));
+    await waitFor(() =>
+      expect(screen.getByTestId('toggle-temperature-unit')).toHaveTextContent('Toggle Temperature (Fahrenheit)')
+    );
+    expect(await AsyncStorage.getItem('turtle_temperature_unit')).toBe('F');
+
+    // Node view: latest reading and graph in Fahrenheit
+    fireEvent.press(screen.getAllByText('Dash').at(-1)!);
+    fireEvent.press(await screen.findByText('Node 5'));
+    await screen.findByText('Temperature (last 24h)');
+    expect(screen.getByText(fahrenheit(latest.temperature))).toBeTruthy();
+    const chart = within(screen.getByTestId('temperature-chart')).getByTestId('line-chart');
+    const values: number[] = chart.props.chartData.datasets[0].data;
+    expect(`${values.at(-1)}°F`).toBe(fahrenheit(latest.temperature));
+    await finishNodeLoading();
+
+    // Toggling back gives Celsius again
+    fireEvent.press(screen.getAllByText('Config').at(-1)!);
+    await screen.findByText('Configure');
+    fireEvent.press(screen.getAllByTestId('toggle-temperature-unit').at(-1)!);
+    await waitFor(() => expect(AsyncStorage.getItem('turtle_temperature_unit')).resolves.toBe('C'));
   });
 });

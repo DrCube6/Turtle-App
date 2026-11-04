@@ -3,6 +3,7 @@ import { Alert, Switch } from "react-native";
 import { Button, ScrollView, Separator, Text, XStack, YStack } from "tamagui";
 import { useBLE } from "@/context/BLEContext";
 import { useNodePlacements } from "@/hooks/useNodePlacements";
+import { useTemperatureUnit } from "@/hooks/useTemperatureUnit";
 import { useOpenScreen } from "@/hooks/useOpenScreen";
 import { useAppTheme } from "@/context/ThemeContext";
 import { useScreenPadding } from "@/hooks/useScreenPadding";
@@ -24,6 +25,8 @@ export default function Config() {
   const openScreen = useOpenScreen();
   const { disconnect } = useBLE();
   const { placements, clearPlacements } = useNodePlacements();
+  // Celsius (default) or Fahrenheit for the node view and map readings
+  const { unit, setUnit } = useTemperatureUnit();
 
   const placedCount = Object.keys(placements).length;
 
@@ -117,6 +120,15 @@ export default function Config() {
 
             {/* Actions, under the theme toggle */}
             <YStack gap={10}>
+              {/* Shows the unit in use; each press switches to the other */}
+              <Button
+                testID="toggle-temperature-unit"
+                size="$3"
+                theme="yellow"
+                onPress={() => setUnit(unit === "C" ? "F" : "C")}
+              >
+                {`Toggle Temperature (${unit === "C" ? "Celsius" : "Fahrenheit"})`}
+              </Button>
               {/* Pick the map's home view on a map - what you see is what you get */}
               <Button
                 testID="change-default-map-location"

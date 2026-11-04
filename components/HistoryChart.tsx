@@ -27,17 +27,23 @@ const chartConfigFor = (mode: ThemeMode, surface: string) => {
     decimalPlaces: 1,
     color: (opacity = 1) => `rgba(${line}, ${opacity})`,
     labelColor: (opacity = 1) => `rgba(${label}, ${opacity})`,
+    // The outline keeps a missing hour (filled with the background, see
+    // getDotColor) visible as a hollow ring; real readings are solid
     propsForDots: {
       r: "3",
+      strokeWidth: "1.5",
+      stroke: `rgb(${line})`,
     },
+    lineColor: `rgb(${line})`,
   };
 };
 
 const TOOLTIP_WIDTH = 84;
 
 type Props = {
-  // Oldest -> newest
-  values: number[];
+  // Oldest -> newest. null = no reading that hour (the series starts on a
+  // real value and always ends at -1h, which may be null)
+  values: (number | null)[];
   // Hours ago for each value (same order), e.g. 24 ... 1
   hours: number[];
   // Appended to values in the tooltip, e.g. "F" or "%"
@@ -62,6 +68,13 @@ export function HistoryChart({ values, hours, unit, testID, height = 180, onDraw
   // so the newest point stops well short of the right edge. Draw the chart
   // wider so the newest point lands at the edge, and clip the extra width.
   const n = values.length;
+
+  // chart-kit can't plot missing values, so a gap gets a stand-in value on
+  // the straight line between its neighbours and is drawn as a hollow ring
+  // (tap it: "No data") so it's clear that hour has no reading
+  const plotted = fillGaps(values);
+  const dotColor = (_value: number, index: number) =>
+    values[index] === null ? colors.surface : chartConfig.lineColor;
   const chartWidth =
     n > 1 ? LABEL_AREA + (n * (width - RIGHT_MARGIN - LABEL_AREA)) / (n - 1) : width;
 
@@ -91,7 +104,8 @@ export function HistoryChart({ values, hours, unit, testID, height = 180, onDraw
       }}
     >
       <LineChart
-        data={{ labels, datasets: [{ data: values }] }}
+        data={{ labels, datasets: [{ data: plotted }] }}
+        getDotColor={dotColor}
         width={chartWidth}
         height={height}
         chartConfig={chartConfig}
@@ -128,8 +142,7 @@ export function HistoryChart({ values, hours, unit, testID, height = 180, onDraw
             backgroundColor="rgba(0, 0, 0, 0.85)"
           >
             <Text color="white" fontSize="$3" fontWeight="bold">
-              {values[selected.index]}
-              {unit}
+              {values[selected.index] === null ? "No data" : `${values[selected.index]}${unit}`}
             </Text>
             <Text color="gray" fontSize="$1">
               -{hours[selected.index]}h
@@ -156,3 +169,19 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
 });
+
+// [1, null, null, 4] -> [1, 2, 3, 4]: each null takes the value on the
+// straight line between the readings either side of it
+function fillGaps(values: (number | null)[]): number[] {
+  return values.map((value, i) => {
+    if (value !== null) return value;
+    let before = i - 1;
+    while (before >= 0 && values[before] === null) before--;
+    let after = i + 1;
+    while (after < values.length && values[after] === null) after++;
+    const a = values[before] ?? values[after] ?? 0;
+    const b = values[after] ?? a;
+    if (before < 0 || after >= values.length) return a;
+    return a + ((b - a) * (i - before)) / (after - before);
+  });
+}

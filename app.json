@@ -4,6 +4,7 @@
     "slug": "Turtle-App",
     "version": "1.0.5",
     "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
     "scheme": "turtleapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -17,7 +18,9 @@
     "android": {
       "edgeToEdgeEnabled": false,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE"
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "monochromeImage": "./assets/images/adaptive-icon-monochrome.png",
+        "backgroundColor": "#202020"
       },
       "package": "com.rocklinb.TurtleApp",
       "predictiveBackGestureEnabled": false,
@@ -93,6 +96,9 @@
     },
     "updates": {
       "url": "https://u.expo.dev/b63e09e0-b109-480e-811a-b41568e581c0"
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png"
     }
   }
 }
