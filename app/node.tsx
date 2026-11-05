@@ -8,7 +8,7 @@ import { useBLE } from "@/context/BLEContext";
 import { useOpenScreen } from "@/hooks/useOpenScreen";
 import { useAppTheme } from "@/context/ThemeContext";
 import { useScreenPadding } from "@/hooks/useScreenPadding";
-import { formatPercent, historySeries, isDisconnected } from "@/utils/nodes";
+import { formatPercent, historySeries, isDisconnected, sampleCount } from "@/utils/nodes";
 import { formatReadingTime } from "@/utils/time";
 import { useTemperatureUnit } from "@/hooks/useTemperatureUnit";
 import { formatTemperature, toUnit } from "@/utils/temperature";
@@ -33,7 +33,7 @@ export default function Node() {
 
   const nodeNum = Number(node);
 
-  // Has readings in the last 24h but none in the newest hour
+  // Has readings in the last 24 samples but none in the newest one
   const disconnected = isDisconnected(sensorData, nodeNum);
 
   // When this node's newest reading was taken (lowest HR that has one)
@@ -42,8 +42,12 @@ export default function Node() {
       .filter(row => row.node === nodeNum && row.timestamp !== null)
       .sort((a, b) => a.hr - b.hr)[0]?.timestamp ?? null;
 
-  // Oldest -> newest, from the first to the last hour with a value; missing
-  // hours in between are null (drawn as gaps, see HistoryChart)
+  // The graphs cover every sample in the CSV: "last 8 samples" / "last 1 sample"
+  const samples = sampleCount(sensorData);
+  const samplesLabel = `last ${samples} ${samples === 1 ? "sample" : "samples"}`;
+
+  // Oldest -> newest, across those samples; hours this node has no value
+  // are null (drawn as gaps, see HistoryChart)
   const temperatureHistory = historySeries(sensorData, nodeNum, row =>
     Number(toUnit(row.temperature, unit).toFixed(2))
   );
@@ -212,7 +216,7 @@ export default function Node() {
               {/* Temperature graph */}
               <YStack gap="$2">
                 <Text color={colors.text} fontSize="$4" fontWeight="bold">
-                  Temperature (last 24h)
+                  Temperature ({samplesLabel})
                 </Text>
                 {temperatureHistory.values.length > 0 ? (
                   <HistoryChart
@@ -232,7 +236,7 @@ export default function Node() {
               {/* Humidity graph */}
               <YStack gap="$2">
                 <Text color={colors.text} fontSize="$4" fontWeight="bold">
-                  Humidity (last 24h)
+                  Humidity ({samplesLabel})
                 </Text>
                 {humidityHistory.values.length > 0 ? (
                   <HistoryChart

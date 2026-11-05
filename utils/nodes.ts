@@ -51,7 +51,7 @@ const isComplete = (row: SensorData): boolean =>
   Number.isFinite(row.humidity) &&
   row.timestamp !== null;
 
-// Reported in the last 24h, but the newest hour (HR 1) is missing or
+// Reported in the last 24 samples, but the newest one (HR 1) is missing or
 // incomplete ("1,9,,77.47,51.53,..."): the node has stopped sending
 // properly. A node with no readings at all isn't listed anyway.
 export const isDisconnected = (rows: SensorData[], node: number): boolean => {
@@ -60,12 +60,20 @@ export const isDisconnected = (rows: SensorData[], node: number): boolean => {
   return nodeRows.length > 0 && (!newest || !isComplete(newest));
 };
 
-// One graph line for a node, oldest -> newest. It starts at the oldest hour
-// that has a value (missing hours before it are left off) and always ends
-// at HR 1 (-1h), so the graph reaches the present even when the newest
-// hours are missing. Missing hours in that span stay null (a gap).
+// How many samples the CSV holds: the highest HR with a reading from any
+// node (rows with no readings are dropped when parsing). 0 when empty.
+export const sampleCount = (rows: SensorData[]): number =>
+  rows.reduce(
+    (highest, row) => (row.hr >= 1 && row.hr <= 24 ? Math.max(highest, row.hr) : highest),
+    0
+  );
+
+// One graph line for a node, oldest -> newest. Every node's graph spans the
+// same range, from the CSV's last sample (sampleCount) to HR 1 (sample -1).
+// Hours in that range where this node has no value are null (a gap).
+// With data up to HR 9 in the CSV:
 //   values at HR 9, 8, 3, 2, 1 -> hours [9..1], values [v, v, null x4, v, v, v]
-//   values at HR 8..3          -> hours [8..1], values [v x6, null, null]
+//   values at HR 8..3          -> hours [9..1], values [null, v x6, null, null]
 export const historySeries = (
   rows: SensorData[],
   node: number,
@@ -80,9 +88,8 @@ export const historySeries = (
   }
   if (byHour.size === 0) return { hours: [], values: [] };
 
-  const oldest = Math.max(...byHour.keys());
   const hours: number[] = [];
-  for (let hr = oldest; hr >= 1; hr--) hours.push(hr);
+  for (let hr = sampleCount(rows); hr >= 1; hr--) hours.push(hr);
   return { hours, values: hours.map(hr => byHour.get(hr) ?? null) };
 };
 

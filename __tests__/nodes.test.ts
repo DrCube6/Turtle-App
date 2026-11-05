@@ -67,16 +67,24 @@ describe('disconnected nodes and graph gaps', () => {
     expect(isDisconnected(rows, 9)).toBe(false);
   });
 
-  it('data at hours 1, 2, 3, 8, 9: graph spans -9h..-1h with gaps only at 4-7', () => {
+  it('data at hours 1, 2, 3, 8, 9: graph spans samples -9..-1 with gaps only at 4-7', () => {
     const { hours, values } = historySeries(rowsAt(1, [1, 2, 3, 8, 9]), 1, (r: any) => r.temperature);
     expect(hours).toEqual([9, 8, 7, 6, 5, 4, 3, 2, 1]);
     expect(values).toEqual([29, 28, null, null, null, null, 23, 22, 21]);
   });
 
-  it('starts at the first reading but always ends at -1h: missing newest hours are gaps', () => {
-    const { hours, values } = historySeries(rowsAt(9, [3, 4, 5, 6, 7, 8]), 9, (r: any) => r.temperature);
-    expect(hours).toEqual([8, 7, 6, 5, 4, 3, 2, 1]); // nothing before HR 8
-    expect(values).toEqual([28, 27, 26, 25, 24, 23, null, null]);
+  it('every node spans the last sample in the CSV down to sample -1: its missing hours are gaps', () => {
+    const rows = [...rowsAt(9, [3, 4, 5, 6, 7, 8]), ...rowsAt(2, [1, 2, 3, 4, 5, 6, 7, 8, 9])];
+    const { hours, values } = historySeries(rows, 9, (r: any) => r.temperature);
+    expect(hours).toEqual([9, 8, 7, 6, 5, 4, 3, 2, 1]);
+    expect(values).toEqual([null, 28, 27, 26, 25, 24, 23, null, null]);
+  });
+
+  it('sampleCount is the highest HR with a reading from any node', () => {
+    const { sampleCount } = require('@/utils/nodes');
+    expect(sampleCount([])).toBe(0);
+    expect(sampleCount(rowsAt(1, [1, 2, 3]))).toBe(3);
+    expect(sampleCount([...rowsAt(1, [1, 2]), ...rowsAt(0, [1, 2, 3, 4, 5])])).toBe(5);
   });
 
   it('a value missing only in one column (NaN) is a gap in that graph only', () => {

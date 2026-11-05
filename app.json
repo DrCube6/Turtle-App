@@ -80,6 +80,15 @@
       "expo-secure-store",
       "expo-font",
       "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#202020"
+        }
+      ],
       "./plugins/withLargeHeap"
     ],
     "experiments": {

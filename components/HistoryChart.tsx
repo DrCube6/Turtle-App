@@ -42,9 +42,9 @@ const TOOLTIP_WIDTH = 84;
 
 type Props = {
   // Oldest -> newest. null = no reading that hour (the series starts on a
-  // real value and always ends at -1h, which may be null)
+  // real value and always ends at sample -1, which may be null)
   values: (number | null)[];
-  // Hours ago for each value (same order), e.g. 24 ... 1
+  // Samples ago for each value (same order), e.g. 24 ... 1 (the CSV's Hr column)
   hours: number[];
   // Appended to values in the tooltip, e.g. "F" or "%"
   unit: string;
@@ -81,7 +81,7 @@ export function HistoryChart({ values, hours, unit, testID, height = 180, onDraw
   // Label every 4th point (plus the first and last) so the x-axis doesn't
   // get crowded with up to 24 overlapping labels
   const labels = hours.map((hr, i) =>
-    i === 0 || i === n - 1 || i % 4 === 0 ? `-${hr}h` : ""
+    i === 0 || i === n - 1 || i % 4 === 0 ? `-${hr}` : ""
   );
 
   const tooltipLeft = selected
@@ -145,7 +145,7 @@ export function HistoryChart({ values, hours, unit, testID, height = 180, onDraw
               {values[selected.index] === null ? "No data" : `${values[selected.index]}${unit}`}
             </Text>
             <Text color="gray" fontSize="$1">
-              -{hours[selected.index]}h
+              Sample -{hours[selected.index]}
             </Text>
           </YStack>
         </>
